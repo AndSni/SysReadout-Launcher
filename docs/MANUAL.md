@@ -64,6 +64,19 @@ Long-press an empty part of the home screen. The header (`sysreadout --config �
 
 The log has up to four parts, top to bottom: the **banner**, the **pinned rows**, the **monitor tables** and the **stream**.
 
+### Layout: classic or feed
+
+Settings › log › *layout*.
+
+- **classic** (default): the banner, then the rows, the tables with their headers, and the stream, each in its own place. With many rows switched on, whatever doesn't fit is cut off at the bottom.
+- **feed**: one list without headers or separators, where every line says what it is (`proc  System UI  cpu 11.5%  rss 172M`, `conn  Signal → …`, `scrn  Firefox  1h12m on screen today`). It never runs out of room:
+  - something new (an event, a row you switch on, a new process or connection) enters at the top and pushes everything else down; lines that no longer fit fall off the bottom;
+  - a line already on screen updates where it is, so each item appears once;
+  - a line that fell off comes back at the top the next time its value changes, so values that keep changing stay visible while static ones make room;
+  - items that no longer exist (an exited process, a closed connection) disappear.
+
+  *New rows appear at* switches the entry edge to the bottom, like a terminal's `tail -f`. The banner stays at the top either way, and the lock-screen snapshot follows the layout you pick.
+
 ### Banner
 
 Free text above everything else, like a terminal's boot header. Edit it under log › banner › *edit text*. These placeholders are filled in live:
@@ -250,6 +263,7 @@ The *battery drain per app* table (Shizuku) shows SysReadout's own share too.
 | The DNS monitor switches itself off | Another VPN took over, or Private DNS is set to a provider. |
 | `wifi` shows no network name | The `ssid` row needs the location permission *and* location switched on. |
 | Lock-screen snapshot doesn't show | Some phones override lock-screen wallpapers in their own theme settings; set the lock screen there to use the wallpaper. |
+| Rows are cut off at the bottom | Switch settings › log › *layout* to **feed**, or show fewer rows. |
 | Text over the log is hard to read | Use the *frosted* or *highlight* entry style, or turn down CRT glow. |
 
 ## 11. Privacy

@@ -3,6 +3,7 @@ package com.asnidev.sysreadout.log
 import android.content.Context
 import com.asnidev.sysreadout.apps.AppEntry
 import com.asnidev.sysreadout.data.LauncherPrefs
+import com.asnidev.sysreadout.data.LogLayout
 import com.asnidev.sysreadout.data.MonitorPrefs
 import com.asnidev.sysreadout.data.ProcSort
 import com.asnidev.sysreadout.log.ProbeReader.Companion.bytes
@@ -27,13 +28,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-data class LogTable(val title: String, val header: String, val rows: List<String>)
-data class StreamLine(val time: Long, val text: String)
+/** One line of the feed layout; [key] identifies what it describes, [time] is set for events. */
+data class FeedItem(val key: String, val text: String, val time: Long? = null)
+
+/** [rows] are the classic layout's columns; [items] the same data as self-describing feed lines. */
+data class LogTable(val title: String, val header: String, val rows: List<String>, val items: List<FeedItem> = emptyList())
+data class StreamLine(val time: Long, val text: String, val seq: Long = 0)
 data class LogFrame(
     val banner: List<String> = emptyList(),
     val pinned: List<String> = emptyList(),
     val tables: List<LogTable> = emptyList(),
     val stream: List<StreamLine> = emptyList(),
+    val feed: List<FeedItem> = emptyList(),
 )
 
 /**
@@ -75,6 +81,16 @@ class LogEngine(
     /** Debug builds: rows to show instead of the saved ones (adb `--es rows a,b,c`). */
     @Volatile var rowsOverride: List<String>? = null
     private val activeRows: List<String> get() = rowsOverride ?: prefs.value.logRows
+
+    private val feed = Feed()
+    private var eventSeq = 0L
+
+    /** How many feed lines fit on screen; set by the UI. */
+    @Volatile var feedCapacity = 60
+
+    /** Debug builds: layout to show instead of the saved one. */
+    @Volatile var layoutOverride: LogLayout? = null
+    @Volatile var feedTopOverride: Boolean? = null
 
     /** Values for rows the engine gathers itself (usage access / Shizuku), keyed by row id. */
     private val external = HashMap<String, String>()
@@ -251,11 +267,13 @@ class LogEngine(
                 if (m.procSort == ProcSort.CPU) compareByDescending<Proc> { it.cpu }.thenByDescending { it.resBytes }
                 else compareByDescending { it.resBytes },
             )
+            val top = sorted.take(m.procRows)
             LogTable(
                 "procs · ${procs.size} · by ${m.procSort.name.lowercase()}",
                 "  PID  CPU%    RES  PROCESS",
-                sorted.take(m.procRows).map {
-                    String.format(Locale.US, "%5d %5.1f %6s  %s", it.pid, it.cpu, bytes(it.resBytes), procLabel(it))
+                top.map { String.format(Locale.US, "%5d %5.1f %6s  %s", it.pid, it.cpu, bytes(it.resBytes), procLabel(it)) },
+                top.map {
+                    item("proc:${it.pid}", "proc", String.format(Locale.US, "%s  cpu %.1f%%  rss %s  pid %d", procLabel(it), it.cpu, bytes(it.resBytes), it.pid))
                 },
             )
         }
@@ -298,14 +316,18 @@ class LogEngine(
 
     private fun connTable(socks: List<Sock>, m: MonitorPrefs): LogTable? {
         if (!m.conns) return null
-        val rows = socks
+        val shown = socks
             .map { it to uidLabel(it.uid) }
             .sortedWith(compareBy({ it.second.lowercase() }, { it.first.remote }))
             .take(m.connRows)
-            .map { (s, app) ->
+        return LogTable(
+            "connections · ${socks.size}",
+            "APP           REMOTE                HOST",
+            shown.map { (s, app) ->
                 String.format(Locale.US, "%-13s %-21s %s", app.take(13), s.remote.take(21), host(s.remoteIp).orEmpty())
-            }
-        return LogTable("connections · ${socks.size}", "APP           REMOTE                HOST", rows)
+            },
+            shown.map { (s, _) -> item("conn:${s.uid}/${s.remote}", "conn", connLine(s)) },
+        )
     }
 
     private fun connLine(s: Sock): String =
@@ -313,12 +335,14 @@ class LogEngine(
 
     private suspend fun sampleWakelocks(m: MonitorPrefs): LogTable? {
         val locks = Parsers.wakeLocks(shizuku.exec("dumpsys power") ?: return wakeTable)
+        val shown = locks.take(m.wakeRows)
         return LogTable(
             "wakelocks · ${locks.size}",
             if (locks.isEmpty()) "" else "TYPE          APP              TAG",
-            if (locks.isEmpty()) listOf("none held") else locks.take(m.wakeRows).map {
+            if (locks.isEmpty()) listOf("none held") else shown.map {
                 String.format(Locale.US, "%-13s %-16s %s", it.level.take(13), uidLabel(it.uid).take(16), it.tag)
             },
+            shown.map { item("wake:${it.uid}/${it.tag}", "wake", "${uidLabel(it.uid)}  ${it.level}  ${it.tag}") },
         )
     }
 
@@ -374,12 +398,17 @@ class LogEngine(
     private suspend fun sampleBattery(m: MonitorPrefs): LogTable? {
         val drains = Parsers.batteryUsage(shizuku.exec("dumpsys batterystats --usage") ?: return null)
             .filter { it.mah >= 0.01 }.sortedByDescending { it.mah }
+        val shown = drains.take(m.batteryRows)
         return LogTable(
             "battery since charge",
             "APP                      mAh  MOSTLY",
-            drains.take(m.batteryRows).map {
+            shown.map {
                 String.format(Locale.US, "%-20s %8.1f  %s", uidLabel(it.uid).take(20), it.mah, it.mostly.orEmpty())
             }.ifEmpty { listOf("nothing measured yet") },
+            shown.map {
+                item("drain:${it.uid}", "drain", String.format(Locale.US, "%s  %.1fmAh since charge", uidLabel(it.uid), it.mah) +
+                    (it.mostly?.let { m -> "  mostly $m" } ?: ""))
+            },
         )
     }
 
@@ -401,12 +430,13 @@ class LogEngine(
                 notifSeen = System.currentTimeMillis()
             }
             val table = if (m.notifTable && NotifLog.connected) {
+                val shown = NotifLog.todayByApp().take(m.notifRows)
                 LogTable(
                     "notifications today · ${NotifLog.todayTotal()}",
                     "",
-                    NotifLog.todayByApp().take(m.notifRows).map { (pkg, n) ->
-                        String.format(Locale.US, "%-20s %8d", pkgLabel(pkg).take(20), n)
-                    }.ifEmpty { listOf("none yet") },
+                    shown.map { (pkg, n) -> String.format(Locale.US, "%-20s %8d", pkgLabel(pkg).take(20), n) }
+                        .ifEmpty { listOf("none yet") },
+                    shown.map { (pkg, n) -> item("ntfs:$pkg", "ntfs", "${pkgLabel(pkg)}  $n notifications today") },
                 )
             } else null
             if (table != notifTable) {
@@ -504,22 +534,25 @@ class LogEngine(
         }
     }
 
-    private fun screenTable(m: MonitorPrefs): LogTable = LogTable(
-        "screen time today",
-        "",
-        usage.screenTimeToday().take(m.screenRows).map { (pkg, ms) ->
-            String.format(Locale.US, "%-20s %8s", pkgLabel(pkg).take(20), duration(ms))
-        },
-    )
+    private fun screenTable(m: MonitorPrefs): LogTable {
+        val shown = usage.screenTimeToday().take(m.screenRows)
+        return LogTable(
+            "screen time today",
+            "",
+            shown.map { (pkg, ms) -> String.format(Locale.US, "%-20s %8s", pkgLabel(pkg).take(20), duration(ms)) },
+            shown.map { (pkg, ms) -> item("scrn:$pkg", "scrn", "${pkgLabel(pkg)}  ${duration(ms)} on screen today") },
+        )
+    }
 
-    private fun trafficTable(m: MonitorPrefs): LogTable = LogTable(
-        "traffic today",
-        "APP                     ↓RX     ↑TX",
-        usage.trafficToday().entries.sortedByDescending { it.value.first + it.value.second }.take(m.trafficRows)
-            .map { (uid, t) ->
-                String.format(Locale.US, "%-20s %7s %7s", uidLabel(uid).take(20), bytes(t.first), bytes(t.second))
-            },
-    )
+    private fun trafficTable(m: MonitorPrefs): LogTable {
+        val shown = usage.trafficToday().entries.sortedByDescending { it.value.first + it.value.second }.take(m.trafficRows)
+        return LogTable(
+            "traffic today",
+            "APP                     ↓RX     ↑TX",
+            shown.map { (uid, t) -> String.format(Locale.US, "%-20s %7s %7s", uidLabel(uid).take(20), bytes(t.first), bytes(t.second)) },
+            shown.map { (uid, t) -> item("traf:$uid", "traf", "${uidLabel(uid)}  ↓${bytes(t.first)} ↑${bytes(t.second)} today") },
+        )
+    }
 
     // --- names ---
 
@@ -577,7 +610,7 @@ class LogEngine(
     // --- output ---
 
     private fun emit(key: String, text: String, time: Long = System.currentTimeMillis()) {
-        val line = StreamLine(time, key.padEnd(ProbeReader.KEY_WIDTH) + text)
+        val line = StreamLine(time, key.padEnd(ProbeReader.KEY_WIDTH) + text, ++eventSeq)
         // Late events (usage, DNS, logcat) arrive with their original time: keep the stream in time order.
         var i = stream.size
         while (i > 0 && stream[i - 1].time > time) i--
@@ -586,13 +619,24 @@ class LogEngine(
     }
 
     private fun publish() {
-        _frame.value = LogFrame(
-            banner,
-            pinned,
-            listOfNotNull(procTable, connTable, wakeTable, batteryTable, screenTable, trafficTable, notifTable),
-            stream.toList(),
-        )
+        val tables = listOfNotNull(procTable, connTable, wakeTable, batteryTable, screenTable, trafficTable, notifTable)
+        updateFeed(tables)
+        _frame.value = LogFrame(banner, pinned, tables, stream.toList(), feed.rows.toList())
     }
+
+    private fun updateFeed(tables: List<LogTable>) {
+        if ((layoutOverride ?: prefs.value.logLayout) != LogLayout.FEED) {
+            if (feed.rows.isNotEmpty()) feed.clear(eventSeq)
+            return
+        }
+        // Everything with a live value, in reading order.
+        val live = LinkedHashMap<String, String>()
+        pinned.forEach { row -> live["row:" + row.substringBefore(' ')] = row }
+        tables.forEach { t -> t.items.forEach { live[it.key] = it.text } }
+        feed.update(live, stream, feedTopOverride ?: prefs.value.feedNewestAtTop, feedCapacity, prefs.value.showStream)
+    }
+
+    private fun item(key: String, tag: String, text: String) = FeedItem(key, tag.padEnd(ProbeReader.KEY_WIDTH) + text)
 
     private fun duration(ms: Long): String {
         val m = ms / 60_000

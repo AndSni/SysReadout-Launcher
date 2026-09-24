@@ -43,6 +43,8 @@ class SettingsStore(private val context: Context) {
         val banner = stringPreferencesKey("banner")
         val bannerAlign = stringPreferencesKey("banner_align")
         val lockMode = stringPreferencesKey("lock_mode")
+        val logLayout = stringPreferencesKey("log_layout")
+        val feedTop = booleanPreferencesKey("feed_newest_at_top")
     }
 
     val prefs: Flow<LauncherPrefs> = context.dataStore.data.map(::read)
@@ -100,6 +102,8 @@ class SettingsStore(private val context: Context) {
             banner = p[K.banner] ?: d.banner,
             bannerAlign = enumOr(p[K.bannerAlign], d.bannerAlign),
             lockMode = enumOr(p[K.lockMode], d.lockMode),
+            logLayout = enumOr(p[K.logLayout], d.logLayout),
+            feedNewestAtTop = p[K.feedTop] ?: d.feedNewestAtTop,
         )
     }
 
@@ -126,6 +130,8 @@ class SettingsStore(private val context: Context) {
         p[K.banner] = v.banner
         p[K.bannerAlign] = v.bannerAlign.name
         p[K.lockMode] = v.lockMode.name
+        p[K.logLayout] = v.logLayout.name
+        p[K.feedTop] = v.feedNewestAtTop
     }
 
     private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E =

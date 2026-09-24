@@ -25,6 +25,7 @@ SRL for short.
 - 52 optional status rows: CPU, memory, swap, thermal headroom, battery current and watts, network speed, Wi-Fi and mobile signal (spelled out, never drawn as bars), IP, storage, build properties, GPU, sensors, sunrise, moon phase and more. Choose and order them yourself.
 - An editable banner header with live placeholders (`{year}`, `{device}`, `{android}`…).
 - An event stream: network and power changes, installs, app switches, background services.
+- Two layouts: **classic** (rows, tables and stream in fixed places) or **feed**, one header-free list where new lines push older ones off the screen and lines already showing update in place.
 
 **System monitor** (each part optional)
 - **[Shizuku](https://shizuku.rikka.app/):** processes by CPU or memory, every connection per app with the server's name, wakelocks, per-app battery drain, temperatures, per-core load, system errors from logcat.

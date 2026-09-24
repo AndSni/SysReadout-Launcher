@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.asnidev.sysreadout.LauncherViewModel
 import com.asnidev.sysreadout.data.HAlign
 import com.asnidev.sysreadout.data.LauncherPrefs
+import com.asnidev.sysreadout.data.LogLayout
 import com.asnidev.sysreadout.data.MonitorPrefs
 import com.asnidev.sysreadout.data.ProcSort
 import com.asnidev.sysreadout.log.Access
@@ -82,6 +83,19 @@ fun LogPage(vm: LauncherViewModel) {
     }
 
     BannerSection(vm)
+
+    Section("layout")
+    Note(
+        "classic: rows, monitor tables and the stream each in their own place. feed: one list without " +
+            "headers. new rows push older ones off the screen; rows already showing update where they are, " +
+            "and a row that fell off comes back when its value changes.",
+    )
+    Cycle("layout", prefs.logLayout, LogLayout.entries) { v -> vm.update { it.copy(logLayout = v) } }
+    if (prefs.logLayout == LogLayout.FEED) {
+        Cycle("new rows appear at", prefs.feedNewestAtTop, listOf(true, false), show = { if (it) "top" else "bottom" }) { v ->
+            vm.update { it.copy(feedNewestAtTop = v) }
+        }
+    }
 
     Section("pinned rows · shown")
     Note("fixed rows at the top of the log, top to bottom. tap to remove, ↑ ↓ to reorder.")

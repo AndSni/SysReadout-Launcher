@@ -24,6 +24,12 @@ enum class EntryStyle { FROSTED, HIGHLIGHT, INVERTED, BARE }
 enum class HAlign { START, CENTER, END }
 enum class VAlign { TOP, CENTER, BOTTOM }
 
+/**
+ * CLASSIC: rows, tables and stream in fixed places. FEED: one list without
+ * headers, new rows push older ones off the screen, rows on screen update in place.
+ */
+enum class LogLayout { CLASSIC, FEED }
+
 /** What SysReadout does with the lock-screen wallpaper. OFF leaves it alone. */
 enum class LockMode { OFF, IMAGE, SNAPSHOT }
 
@@ -52,6 +58,9 @@ data class LauncherPrefs(
     val banner: String = DEFAULT_BANNER,
     val bannerAlign: HAlign = HAlign.CENTER,
     val lockMode: LockMode = LockMode.OFF,
+    val logLayout: LogLayout = LogLayout.CLASSIC,
+    /** Feed layout: new rows enter at the top (true) or at the bottom. */
+    val feedNewestAtTop: Boolean = true,
 ) {
     companion object {
         val INTERVALS = listOf(1, 2, 5, 10)

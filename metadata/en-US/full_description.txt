@@ -9,6 +9,7 @@ The readout:
 * About 50 optional rows: CPU and memory, battery current and watts, thermal headroom, network speed, Wi-Fi and mobile signal (spelled out, no icons), IP, storage, build properties, GPU, sensors, sunrise, moon phase and more. Pick and order them yourself.
 * An editable banner header with live values like {year} and {device}.
 * An event stream: network and power changes, installs, app switches and background services.
+* Two layouts: classic sections, or a feed where new lines push older ones off the screen, so any amount of data fits.
 
 Deeper monitoring, when you allow it:
 * With Shizuku: processes by CPU or memory, every connection per app with server names, wakelocks, per-app battery drain, temperatures, per-core load and system errors.

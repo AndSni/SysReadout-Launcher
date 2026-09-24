@@ -14,6 +14,7 @@ import android.util.Log
 import android.view.Display
 import com.asnidev.sysreadout.data.HAlign
 import com.asnidev.sysreadout.data.LauncherPrefs
+import com.asnidev.sysreadout.data.LogLayout
 import com.asnidev.sysreadout.data.TextSpec
 import com.asnidev.sysreadout.data.Theme
 import com.asnidev.sysreadout.log.LogFrame
@@ -88,13 +89,19 @@ object LockScreen {
             y += step
             canvas.drawText(theme.log.case.apply(text), margin, y, p)
         }
-        frame.pinned.forEach { line(it) }
-        frame.tables.forEach { t ->
-            line("── ${t.title} " + "─".repeat(60), dim)
-            if (t.header.isNotEmpty()) line(t.header, dim)
-            t.rows.forEach { line(it) }
+        if (prefs.logLayout == LogLayout.FEED) {
+            val room = ((h - margin * 4 - y) / step).toInt().coerceAtLeast(0)
+            val rows = frame.feed.take(room)
+            (if (prefs.feedNewestAtTop) rows else rows.asReversed()).forEach { line(it.text) }
+        } else {
+            frame.pinned.forEach { line(it) }
+            frame.tables.forEach { t ->
+                line("── ${t.title} " + "─".repeat(60), dim)
+                if (t.header.isNotEmpty()) line(t.header, dim)
+                t.rows.forEach { line(it) }
+            }
         }
-        if (prefs.showStream && frame.stream.isNotEmpty()) {
+        if (prefs.logLayout == LogLayout.CLASSIC && prefs.showStream && frame.stream.isNotEmpty()) {
             line("─".repeat(80), dim)
             // Newest lines, as many as fit above the bottom edge.
             val room = ((h - margin * 4 - y) / step).toInt().coerceAtLeast(0)

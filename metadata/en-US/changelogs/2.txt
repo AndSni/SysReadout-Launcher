@@ -1,0 +1,1 @@
+New feed layout (settings › log › layout): one list without headers where new lines push older ones off the screen, lines already showing update in place, and lines that fell off return when their value changes. New rows can enter at the top or the bottom. With CRT curvature on, the log keeps clear of the rounded corners so text is no longer cut off.

@@ -19,6 +19,7 @@ import com.asnidev.sysreadout.apps.AppRepository
 import com.asnidev.sysreadout.data.AppKey
 import com.asnidev.sysreadout.data.LauncherPrefs
 import com.asnidev.sysreadout.data.LockMode
+import com.asnidev.sysreadout.data.LogLayout
 import com.asnidev.sysreadout.data.MonitorPrefs
 import com.asnidev.sysreadout.data.Preset
 import com.asnidev.sysreadout.data.Presets
@@ -104,6 +105,10 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Debug builds only: a preset shown without being saved (`adb shell am start … --es preview <name>`). */
     var previewTheme by mutableStateOf<Theme?>(null)
+
+    /** Debug builds only: a log layout shown without being saved (`--es layout feed`, `--es feed bottom`). */
+    var previewLayout by mutableStateOf<LogLayout?>(null)
+    var previewFeedTop by mutableStateOf<Boolean?>(null)
 
     /** How many menu entries fit in the home screen's free vertical space; set by the home layout. */
     var menuCapacity by mutableIntStateOf(Int.MAX_VALUE)

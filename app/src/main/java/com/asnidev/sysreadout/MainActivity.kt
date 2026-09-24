@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.luminance
 import com.asnidev.sysreadout.ui.Drawer
 import com.asnidev.sysreadout.ui.HomeScreen
 import com.asnidev.sysreadout.ui.LogBackdrop
+import com.asnidev.sysreadout.data.LogLayout
 import com.asnidev.sysreadout.data.Presets
 import com.asnidev.sysreadout.ui.LocalStyled
 import com.asnidev.sysreadout.ui.crt
@@ -64,6 +65,17 @@ class MainActivity : ComponentActivity() {
             vm.engine.rowsOverride = if (rows == "none") null else rows.split(',').map { it.trim() }
         }
         if (intent?.getBooleanExtra("snapshot", false) == true) vm.snapshotToFile()
+        intent?.getStringExtra("layout")?.let { name ->
+            LogLayout.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }.let {
+                vm.previewLayout = it
+                vm.engine.layoutOverride = it
+            }
+        }
+        intent?.getStringExtra("feed")?.let { edge ->
+            val top = when (edge) { "top" -> true; "bottom" -> false; else -> null }
+            vm.previewFeedTop = top
+            vm.engine.feedTopOverride = top
+        }
         intent?.getStringExtra("screen")?.let { name ->
             Screen.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { vm.screen = it }
         }
