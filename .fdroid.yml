@@ -1,6 +1,7 @@
 Categories:
+  - Launcher
+  - Network Analyzer
   - System
-  - Theming
 License: GPL-3.0-only
 AuthorName: AndSni
 SourceCode: https://github.com/AndSni/SysReadout-Launcher
@@ -19,8 +20,20 @@ Repo: https://github.com/AndSni/SysReadout-Launcher.git
 # APK, so F-Droid's reproducible-build check can diff its own build against it.
 Binaries: https://github.com/AndSni/SysReadout-Launcher/releases/download/v%v/SysReadout-Launcher.apk
 
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    commit: aa4e83456e4d11ed610267f295c1e0f64d30dced
+    # The Gradle root is the repo root; F-Droid looks for the output APK under
+    # <subdir>/build/outputs/apk, so this must be the app module itself.
+    subdir: app
+    gradle:
+      - yes
+
 AllowedAPKSigningKeys: 03873cc1869db581465c718d15b58d7f80999dec058ff21617b58267760a91bb
 
 AutoUpdateMode: Version
 # Only vX.Y.Z tags are releases; `latest` is CI's rolling pre-release build.
 UpdateCheckMode: Tags ^v[0-9.]+$
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1
