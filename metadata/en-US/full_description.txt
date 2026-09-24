@@ -1,0 +1,26 @@
+SysReadout Launcher is a minimal home screen for people who like to know what their phone is doing. Behind a short list of your apps runs a live, terminal-style readout of the system: pinned status rows, monitor tables and a scrolling event log, styled like an old CRT terminal if you want it to be.
+
+The launcher:
+* A handful of pinned apps as clean text entries, limited only by screen height; everything else is one swipe away in a searchable drawer.
+* Gestures: swipe up for apps, down for notifications, left/right for an app of your choice, double-tap to lock, long-press for settings.
+* Hidden apps, renaming, work profiles.
+
+The readout:
+* About 50 optional rows: CPU and memory, battery current and watts, thermal headroom, network speed, Wi-Fi and mobile signal (spelled out, no icons), IP, storage, build properties, GPU, sensors, sunrise, moon phase and more. Pick and order them yourself.
+* An editable banner header with live values like {year} and {device}.
+* An event stream: network and power changes, installs, app switches and background services.
+
+Deeper monitoring, when you allow it:
+* With Shizuku: processes by CPU or memory, every connection per app with server names, wakelocks, per-app battery drain, temperatures, per-core load and system errors.
+* With usage access: screen time, unlocks, traffic per app and data used this month.
+* With the optional DNS monitor (a local VPN that only carries DNS): which app looks up which server.
+* With location, phone, Bluetooth or activity permission: GPS and satellites, cell tower and 5G details, connected Bluetooth devices and their battery, steps.
+Every permission is asked only when you switch on the row that needs it.
+
+Make it yours:
+* 7 presets including green phosphor and amber DOS terminals, your own saved presets.
+* 11 bundled fonts plus your own .ttf/.otf, with size, weight, spacing, case and colour per element.
+* CRT effects: glow, scanlines, curvature, vignette, colour fringe, flicker and grain.
+* Lock screen: leave it alone, use your own image, or show a snapshot of the log.
+
+The log only runs while the home screen is visible. Nothing is collected or sent anywhere: no ads, no analytics, no tracking.

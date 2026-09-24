@@ -1,0 +1,26 @@
+Categories:
+  - System
+  - Theming
+License: GPL-3.0-only
+AuthorName: AndSni
+SourceCode: https://github.com/AndSni/SysReadout-Launcher
+IssueTracker: https://github.com/AndSni/SysReadout-Launcher/issues
+Changelog: https://github.com/AndSni/SysReadout-Launcher/blob/HEAD/metadata/en-US/changelogs/%c.txt
+
+RepoType: git
+Repo: https://github.com/AndSni/SysReadout-Launcher.git
+
+# Summary/Description are intentionally omitted: the fastlane-structured
+# metadata/en-US/{title,short_description,full_description}.txt in this repo is
+# the single source of truth.
+
+# Each version tag also publishes a GitHub Release at that tag
+# (.github/workflows/release-tag.yml) carrying the identical, developer-signed
+# APK, so F-Droid's reproducible-build check can diff its own build against it.
+Binaries: https://github.com/AndSni/SysReadout-Launcher/releases/download/v%v/SysReadout-Launcher.apk
+
+AllowedAPKSigningKeys: 03873cc1869db581465c718d15b58d7f80999dec058ff21617b58267760a91bb
+
+AutoUpdateMode: Version
+# Only vX.Y.Z tags are releases; `latest` is CI's rolling pre-release build.
+UpdateCheckMode: Tags ^v[0-9.]+$

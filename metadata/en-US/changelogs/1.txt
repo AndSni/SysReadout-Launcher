@@ -1,0 +1,1 @@
+First release: a minimal launcher with a live system readout behind it. About 50 optional status rows, an event stream, Shizuku, usage-access and DNS-monitor tables, an editable banner, 7 presets, 11 fonts, CRT effects and a lock-screen snapshot.
