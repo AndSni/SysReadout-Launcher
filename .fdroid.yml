@@ -6,7 +6,8 @@ License: GPL-3.0-only
 AuthorName: AndSni
 SourceCode: https://github.com/AndSni/SysReadout-Launcher
 IssueTracker: https://github.com/AndSni/SysReadout-Launcher/issues
-Changelog: https://github.com/AndSni/SysReadout-Launcher/blob/HEAD/metadata/en-US/changelogs/%c.txt
+Changelog: 
+  https://github.com/AndSni/SysReadout-Launcher/blob/HEAD/metadata/en-US/changelogs/%c.txt
 
 RepoType: git
 Repo: https://github.com/AndSni/SysReadout-Launcher.git
@@ -18,12 +19,13 @@ Repo: https://github.com/AndSni/SysReadout-Launcher.git
 # Each version tag also publishes a GitHub Release at that tag
 # (.github/workflows/release-tag.yml) carrying the identical, developer-signed
 # APK, so F-Droid's reproducible-build check can diff its own build against it.
-Binaries: https://github.com/AndSni/SysReadout-Launcher/releases/download/v%v/SysReadout-Launcher.apk
+Binaries: 
+  https://github.com/AndSni/SysReadout-Launcher/releases/download/v%v/SysReadout-Launcher.apk
 
 Builds:
-  - versionName: 0.1.0
-    versionCode: 1
-    commit: aa4e83456e4d11ed610267f295c1e0f64d30dced
+  - versionName: 0.2.0
+    versionCode: 2
+    commit: 236c18797bb5919273da85979b2e1aafe17c1f0e
     # The Gradle root is the repo root; F-Droid looks for the output APK under
     # <subdir>/build/outputs/apk, so this must be the app module itself.
     subdir: app
@@ -35,5 +37,5 @@ AllowedAPKSigningKeys: 03873cc1869db581465c718d15b58d7f80999dec058ff21617b582677
 AutoUpdateMode: Version
 # Only vX.Y.Z tags are releases; `latest` is CI's rolling pre-release build.
 UpdateCheckMode: Tags ^v[0-9.]+$
-CurrentVersion: 0.1.0
-CurrentVersionCode: 1
+CurrentVersion: 0.2.0
+CurrentVersionCode: 2
