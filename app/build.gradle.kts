@@ -41,6 +41,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // No META-INF/version-control-info.textproto: it records how the source was checked
+            // out (commit, or an error in a worktree or tarball), which F-Droid's build would have
+            // to reproduce byte for byte.
+            vcsInfo.include = false
             // Without keystore.properties (e.g. on F-Droid's build server) the release APK is
             // left unsigned, as F-Droid expects; it then compares that build with ours.
             signingConfig = if (keystoreProperties.isNotEmpty()) signingConfigs.getByName("release") else null
