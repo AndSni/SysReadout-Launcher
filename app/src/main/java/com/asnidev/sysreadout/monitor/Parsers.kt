@@ -4,7 +4,8 @@ package com.asnidev.sysreadout.monitor
 data class Proc(val pid: Int, val uid: Int, val cpu: Float, val resBytes: Long, val name: String) {
     /** App processes are named after their package, optionally with ":suffix". */
     val pkg: String get() = name.substringBefore(':')
-    val isApp: Boolean get() = uid >= FIRST_APP_UID
+    /** In any user: the work profile's apps have uids like 1010123. */
+    val isApp: Boolean get() = appIdOf(uid) >= FIRST_APP_UID
 }
 
 /** A socket from /proc/net/{tcp,tcp6,udp,udp6}. */
@@ -14,9 +15,6 @@ data class Sock(val proto: String, val remoteIp: String, val remotePort: Int, va
 
 /** A held wakelock from `dumpsys power`; [uid] is the app it's held for (work source) when known. */
 data class WakeLock(val level: String, val tag: String, val uid: Int)
-
-/** A playing media session from `dumpsys media_session`. */
-data class NowPlaying(val pkg: String, val title: String, val artist: String?)
 
 /** A line from `logcat -v epoch`. */
 data class LogLine(val time: Double, val level: Char, val tag: String, val message: String)
@@ -28,6 +26,15 @@ data class Drain(val uid: Int, val mah: Double, val mostly: String?)
 data class CoreTicks(val busy: Long, val total: Long)
 
 const val FIRST_APP_UID = 10_000
+
+/** Each Android user (the work profile is one) gets its own block of this many uids. */
+const val PER_USER_RANGE = 100_000
+
+/** The user a uid belongs to: 0 for the owner, e.g. 10 for a work profile. */
+fun userOf(uid: Int): Int = uid / PER_USER_RANGE
+
+/** The uid without its user: the same app has the same app id in every user. */
+fun appIdOf(uid: Int): Int = uid % PER_USER_RANGE
 
 object Parsers {
 
@@ -145,28 +152,6 @@ object Parsers {
         }.toList()
     }
 
-    /** First session in PLAYING state that has a title. */
-    fun nowPlaying(text: String): NowPlaying? {
-        var pkg: String? = null
-        var playing = false
-        text.lineSequence().forEach { raw ->
-            val line = raw.trim()
-            when {
-                line.startsWith("package=") -> {
-                    pkg = line.removePrefix("package=")
-                    playing = false
-                }
-                line.startsWith("state=PlaybackState {") -> playing = "state=PLAYING" in line
-                line.startsWith("metadata:") && playing && pkg != null -> {
-                    val parts = line.substringAfter("description=", "").split(", ")
-                    val title = parts.getOrNull(0)?.takeIf { it.isNotBlank() && it != "null" } ?: return@forEach
-                    return NowPlaying(pkg!!, title, parts.getOrNull(1)?.takeIf { it.isNotBlank() && it != "null" })
-                }
-            }
-        }
-        return null
-    }
-
     private val LOG_LINE = Regex("^\\s*(\\d+\\.\\d+)\\s+\\d+\\s+\\d+\\s+([VDIWEF])\\s+(.*?)\\s*: (.*)$")
 
     fun logcat(text: String): List<LogLine> = text.lineSequence().mapNotNull { line ->
@@ -204,7 +189,7 @@ object Parsers {
     fun batteryUid(token: String): Int? {
         token.toIntOrNull()?.let { return it }
         val app = Regex("^u(\\d+)a(\\d+)$").find(token) ?: return null
-        return app.groupValues[1].toInt() * 100_000 + FIRST_APP_UID + app.groupValues[2].toInt()
+        return app.groupValues[1].toInt() * PER_USER_RANGE + FIRST_APP_UID + app.groupValues[2].toInt()
     }
 
     /** `pm list packages -U` → uid to packages (shared uids list several). */

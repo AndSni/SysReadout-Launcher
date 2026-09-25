@@ -1,6 +1,5 @@
 package com.asnidev.sysreadout.apps
 
-import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -19,7 +18,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.text.Collator
 
-data class AppEntry(val key: AppKey, val label: String, val isWork: Boolean)
+/** [uid] is the app's uid in its own profile (work-profile apps have their own). */
+data class AppEntry(val key: AppKey, val label: String, val isWork: Boolean, val uid: Int = -1)
 
 /** Every launchable activity across the user's profiles, kept fresh via LauncherApps callbacks. */
 class AppRepository(private val context: Context, private val scope: CoroutineScope) {
@@ -51,20 +51,22 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
             val collator = Collator.getInstance()
             _apps.value = userManager.userProfiles.flatMap { user ->
                 val serial = userManager.getSerialNumberForUser(user)
-                launcherApps.getActivityList(null, user)
+                // A locked or removed profile throws; the other profiles still count.
+                runCatching { launcherApps.getActivityList(null, user) }.getOrDefault(emptyList())
                     .filter { it.componentName.packageName != context.packageName }
                     .map {
                         AppEntry(
                             key = AppKey(it.componentName.packageName, it.componentName.className, serial),
                             label = it.label.toString(),
                             isWork = user != me,
+                            uid = it.applicationInfo.uid,
                         )
                     }
             }.sortedWith { a, b -> collator.compare(a.label, b.label) }
         }
     }
 
-    private fun handle(key: AppKey): UserHandle? = userManager.getUserForSerialNumber(key.user)
+    private fun handle(key: AppKey): UserHandle? = runCatching { userManager.getUserForSerialNumber(key.user) }.getOrNull()
 
     fun launch(key: AppKey): Boolean {
         val user = handle(key) ?: return false
@@ -78,7 +80,10 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
 
     fun openInfo(key: AppKey) {
         val user = handle(key) ?: return
-        launcherApps.startAppDetailsActivity(ComponentName(key.pkg, key.cls), user, null, null)
+        try {
+            launcherApps.startAppDetailsActivity(ComponentName(key.pkg, key.cls), user, null, null)
+        } catch (_: RuntimeException) { // SecurityException / ActivityNotFoundException (paused work profile)
+        }
     }
 
     fun uninstall(key: AppKey) {
@@ -87,7 +92,7 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
             .putExtra(Intent.EXTRA_USER, handle(key))
         try {
             context.startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
+        } catch (_: RuntimeException) { // ActivityNotFoundException / SecurityException
         }
     }
 }

@@ -20,6 +20,7 @@ SRL for short.
 - Pinned apps as text entries, as many as fit the screen; a searchable drawer (prefix, initials, substring; opens a single match by itself).
 - Gestures: up for apps, down for notifications, left/right for an app you choose, double-tap to lock, long-press for settings.
 - Hidden apps, renaming, work profiles.
+- Safe mode: should it ever crash twice right after starting, it comes back as a plain launcher until you resume, with the crash report under settings › about.
 
 **Readout**
 - 52 optional status rows: CPU, memory, swap, thermal headroom, battery current and watts, network speed, Wi-Fi and mobile signal (spelled out, never drawn as bars), IP, storage, build properties, GPU, sensors, sunrise, moon phase and more. Choose and order them yourself.
@@ -28,8 +29,9 @@ SRL for short.
 - Two layouts: **classic** (rows, tables and stream in fixed places) or **feed**, one header-free list where new lines push older ones off the screen and lines already showing update in place.
 
 **System monitor** (each part optional)
-- **[Shizuku](https://shizuku.rikka.app/):** processes by CPU or memory, every connection per app with the server's name, wakelocks, per-app battery drain, temperatures, per-core load, system errors from logcat.
+- **[Shizuku](https://shizuku.rikka.app/)** (optional, with a guided setup under settings › shizuku): processes by CPU or memory, every connection per app with the server's name, wakelocks, per-app battery drain, temperatures, per-core load, system errors from logcat. Once connected it can switch on the other access below in one tap.
 - **Usage access:** screen time, unlocks, traffic per app, data used this month.
+- **Notification access:** a notification log and per-app table, and what's playing.
 - **DNS monitor:** a local VPN that carries only DNS, showing which app looks up which server.
 - **Location / phone / Bluetooth / activity:** GPS fix and satellites per constellation, serving cell and 5G/LTE-CA details, connected Bluetooth devices with battery, steps.
 
@@ -57,12 +59,13 @@ Nothing beyond the basics is used until you switch on the feature that needs it,
 | Permission | Used for | When |
 |---|---|---|
 | Network state, Wi-Fi state | connection type, IP, Wi-Fi signal rows | install-time, no prompt |
+| Change Wi-Fi state | asking for a fresh scan for the *nearby networks* row | install-time |
 | Expand status bar | swipe down for notifications | install-time |
 | Request delete packages | *uninstall* in the drawer's long-press menu (Android still asks you to confirm) | install-time |
 | Set alarm | tapping the clock opens your alarms | install-time |
 | Query all packages | real app names for system processes, connections and traffic | install-time |
 | Set wallpaper | lock-screen image or log snapshot | only if you choose it |
-| Internet | **only** the optional DNS monitor, which relays your apps' own lookups to your DNS server | only if you switch it on |
+| Internet | **only** the optional DNS monitor, which relays your apps' own lookups to your network's DNS server (Quad9 or Cloudflare only if the network names none) | only if you switch it on |
 | Usage access | screen time, traffic, app switches | you grant it in Android settings |
 | Notification access | notification row, stream and table | you grant it in Android settings |
 | Accessibility (lock service) | double-tap to lock; reads no screen content | you enable it in Android settings |
@@ -74,7 +77,7 @@ Nothing beyond the basics is used until you switch on the feature that needs it,
 
 ## Privacy
 
-No ads, no analytics, no tracking, no accounts. Everything is read on the phone and kept in memory while the home screen is visible; nothing is written anywhere except your settings. The log stops when the home screen isn't visible.
+No ads, no analytics, no tracking, no accounts. Everything is read on the phone and kept in memory while the home screen is visible; nothing is written anywhere except your settings (and, if SysReadout crashes, the last crash report, which stays on the phone until you share or delete it). The log stops when the home screen isn't visible.
 
 ## Build
 
@@ -97,7 +100,7 @@ keyAlias=sysreadout
 keyPassword=…   # PKCS12 keystores: same as storePassword
 ```
 
-Without it, `assembleRelease` falls back to the debug key. CI gets the same values from repository secrets (`RELEASE_KEYSTORE_B64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`).
+Without it, `assembleRelease` produces an unsigned APK (what F-Droid's build server does). CI gets the same values from repository secrets (`RELEASE_KEYSTORE_B64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`).
 
 ### Releasing a version
 

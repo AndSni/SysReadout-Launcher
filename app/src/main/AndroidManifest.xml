@@ -11,6 +11,8 @@
     <!-- Log rows: connection type, IP, Wi-Fi signal. Install-time, no prompt. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- "aps" row: ask for a fresh Wi-Fi scan (Android still throttles them). -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <!-- Real app names for system packages in the monitor (processes, connections, traffic). -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
@@ -42,7 +44,6 @@
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
-    <!-- Launchable apps only: no QUERY_ALL_PACKAGES needed. -->
     <queries>
         <!-- Shizuku, for the optional system monitor. -->
         <package android:name="moe.shizuku.privileged.api" />
@@ -53,6 +54,7 @@
     </queries>
 
     <application
+        android:name=".SysReadoutApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"

@@ -1,6 +1,7 @@
 package com.asnidev.sysreadout.log
 
 import android.content.Context
+import android.util.Log
 import com.asnidev.sysreadout.apps.AppEntry
 import com.asnidev.sysreadout.data.LauncherPrefs
 import com.asnidev.sysreadout.data.LogLayout
@@ -10,22 +11,28 @@ import com.asnidev.sysreadout.log.ProbeReader.Companion.bytes
 import com.asnidev.sysreadout.monitor.CoreTicks
 import com.asnidev.sysreadout.monitor.DnsLog
 import com.asnidev.sysreadout.monitor.FIRST_APP_UID
+import com.asnidev.sysreadout.monitor.PER_USER_RANGE
+import com.asnidev.sysreadout.monitor.appIdOf
+import com.asnidev.sysreadout.monitor.userOf
 import com.asnidev.sysreadout.monitor.NotifLog
 import com.asnidev.sysreadout.monitor.Parsers
 import com.asnidev.sysreadout.monitor.Proc
 import com.asnidev.sysreadout.monitor.ShizukuBridge
+import com.asnidev.sysreadout.monitor.ShizukuState
 import com.asnidev.sysreadout.monitor.Sock
 import com.asnidev.sysreadout.monitor.UsageEvent
 import com.asnidev.sysreadout.monitor.UsageSource
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
 /** One line of the feed layout; [key] identifies what it describes, [time] is set for events. */
@@ -47,6 +54,9 @@ data class LogFrame(
  * the home screen is visible; on the next visit it reports what changed in
  * between ("while away"), so nothing polls in the background. The DNS
  * monitor, when on, is the one thing that records while hidden.
+ *
+ * Each data source is its own [supervised] loop: one that throws is reported
+ * in the stream and restarted after a pause, and never reaches the home screen.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LogEngine(
@@ -55,10 +65,15 @@ class LogEngine(
     private val monitor: StateFlow<MonitorPrefs>,
     private val apps: StateFlow<List<AppEntry>>,
     val shizuku: ShizukuBridge,
+    /** Called once the one-time tip about Shizuku has been shown, so it isn't shown again. */
+    private val onShizukuTip: () -> Unit = {},
+    /** Returns once the saved settings are loaded; until then [prefs] and [monitor] hold defaults. */
+    private val awaitSettings: suspend () -> Unit = {},
 ) {
     val usage = UsageSource(context)
     private val reader = ProbeReader(context)
     private val pm = context.packageManager
+    private val myUser = userOf(android.os.Process.myUid())
 
     // Every mutation below happens on this one thread, so no locking is needed.
     private val serial = Dispatchers.Default.limitedParallelism(1)
@@ -110,6 +125,12 @@ class LogEngine(
     private var notifSeen = System.currentTimeMillis()
     private val dnsEmitted = HashMap<String, Long>()
     private var started = false
+    private var lastShizuku: ShizukuState? = null
+    /** /proc/net files read successfully at least once (a phone without IPv6 has no tcp6). */
+    private val netSeen = HashSet<String>()
+
+    // Last resort for anything a supervised loop's children throw: log it, keep going.
+    private val errors = CoroutineExceptionHandler { _, e -> Log.w(TAG, "log engine task failed", e) }
 
     private val ptr = object : LinkedHashMap<String, String>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 1024
@@ -125,33 +146,51 @@ class LogEngine(
             val work = list.count { it.isWork }
             "${list.size} launchable  ${prefs.value.hidden.size} hidden" + if (work > 0) "  $work work" else ""
         }
+        reader.appName = ::pkgLabel
         reader.external = { id ->
+            // Shizuku rows are simply left out while it's unavailable; one status row says why.
             external[id] ?: when (ProbeCatalog.byId[id]?.needs) {
                 Access.USAGE -> if (usage.hasAccess()) "…" else "needs usage access"
-                Access.SHIZUKU -> if (shizuku.ready) "…" else "needs shizuku"
+                Access.SHIZUKU -> if (shizuku.ready) "…" else null
                 else -> null
             }
         }
     }
 
-    suspend fun run() = withContext(serial) {
-        shizuku.refresh()
+    suspend fun run() = withContext(serial + errors) {
+        awaitSettings()
+        // Shizuku's own process can hang; the log must start regardless.
+        withTimeoutOrNull(2_000) { shizuku.refreshNow() }
         if (!started) {
             started = true
+            val m = monitor.value
             emit(
                 "log",
                 "sysreadout up · shizuku ${shizuku.state.value.label}" +
                     " · usage access ${if (usage.hasAccess()) "on" else "off"}" +
                     " · dns monitor ${if (DnsLog.running.value) "on" else "off"}",
             )
+            if (!m.shizuku && !m.shizukuTip) {
+                emit("tip", "shizuku adds processes, connections, wakelocks and more · settings › shizuku")
+                onShizukuTip()
+            }
         }
-        coroutineScope {
-            launch { pinnedLoop() }
-            launch { shellLoop(this@coroutineScope) }
-            launch { usageLoop() }
-            launch { dnsLoop() }
-            launch { notifLoop() }
-            launch { packagesLoop() }
+        supervisorScope {
+            launch { supervised("rows", ::loopFailed) { pinnedLoop() } }
+            launch { supervised("shizuku", ::loopFailed) { shellLoop(this@supervisorScope) } }
+            launch { supervised("usage", ::loopFailed) { usageLoop() } }
+            launch { supervised("dns", ::loopFailed) { dnsLoop() } }
+            launch { supervised("notifications", ::loopFailed) { notifLoop() } }
+            launch { supervised("packages", ::loopFailed) { packagesLoop() } }
+        }
+    }
+
+    /** A data source threw: say so in the stream; [supervised] restarts it after [retryMs]. */
+    private fun loopFailed(name: String, e: Throwable, retryMs: Long) {
+        Log.w(TAG, "$name loop failed", e)
+        runCatching {
+            emit("err", "$name stopped (${e.javaClass.simpleName}) · retrying in ${retryMs / 1000}s")
+            publish()
         }
     }
 
@@ -159,9 +198,39 @@ class LogEngine(
     suspend fun freshFrame(): LogFrame = withContext(serial) {
         val p = prefs.value
         banner = if (p.showBanner) BannerText.render(p.banner, context) else emptyList()
-        pinned = reader.sample(activeRows)
+        pinned = listOfNotNull(shizukuRow()) + reader.sample(activeRows)
         publish()
         _frame.value
+    }
+
+    /**
+     * One row that says why the Shizuku tables are missing, while the user has
+     * Shizuku switched on but it isn't connected. Gone once it connects.
+     */
+    private fun shizukuRow(): String? {
+        if (!monitor.value.shizuku) return null
+        val text = when (shizuku.state.value) {
+            ShizukuState.READY, ShizukuState.OFF -> return null
+            ShizukuState.NOT_INSTALLED -> "not installed · settings › shizuku"
+            ShizukuState.NOT_RUNNING -> "not running · start it in the shizuku app"
+            ShizukuState.UNSUPPORTED -> "too old · update the shizuku app"
+            ShizukuState.NO_PERMISSION -> "waiting for access · settings › shizuku"
+            ShizukuState.CONNECTING -> "connecting…"
+            ShizukuState.FAILING -> "helper keeps failing · retrying by itself"
+        }
+        return "shizk".padEnd(ProbeReader.KEY_WIDTH) + text
+    }
+
+    /** Stream lines when Shizuku connects or goes away. */
+    private fun shizukuEvents(m: MonitorPrefs) {
+        val now = if (m.shizuku) shizuku.state.value else ShizukuState.OFF
+        val was = lastShizuku
+        lastShizuku = now
+        if (was == null || was == now) return
+        when {
+            now == ShizukuState.READY -> emit("shizk", "connected" + if (shizuku.isSui) " through sui" else "")
+            was == ShizukuState.READY -> emit("shizk", "${now.label} · processes and connections paused")
+        }
     }
 
     // --- banner, pinned rows, system events ---
@@ -173,7 +242,7 @@ class LogEngine(
                 val rows = activeRows
                 reader.updateWatchers(rows)
                 banner = if (p.showBanner) BannerText.render(p.banner, context) else emptyList()
-                pinned = reader.sample(rows)
+                pinned = listOfNotNull(shizukuRow()) + reader.sample(rows)
                 if (monitor.value.evSystem) systemEvents(reader.state())
                 publish()
                 delay(p.logIntervalSec * 1000L)
@@ -210,11 +279,17 @@ class LogEngine(
 
     // --- Shizuku: processes, connections, wakelocks, logcat, extra rows ---
 
+    /**
+     * Every sample below treats a failed read (null) as "no news": the table
+     * and the state events compare against stay as they were. Reading it as
+     * "no processes" would report every app as exited, then started again.
+     */
     private suspend fun shellLoop(scope: CoroutineScope) {
         while (true) {
             val m = monitor.value
             val rows = activeRows
-            if (shizuku.ready) {
+            shizukuEvents(m)
+            if (m.shizuku && shizuku.ready) {
                 if (m.procs || m.evProcs) sampleProcs(m) else procTable = null
                 if (m.conns || m.evConns) sampleConns(m, scope) else connTable = null
                 if (m.evLogcat) sampleLogcat(m)
@@ -224,25 +299,28 @@ class LogEngine(
                 val now = System.currentTimeMillis()
                 if (now - slowShellAt >= 2 * m.intervalSec * 1000L) {
                     slowShellAt = now
-                    wakeTable = if (m.wakelocks) sampleWakelocks(m) else null
+                    if (m.wakelocks) sampleWakelocks(m)?.let { wakeTable = it } else wakeTable = null
                     if ("temps" in rows) sampleTemps()
-                    if ("media" in rows) sampleMedia()
                 }
-                // batterystats only moves slowly; every 5 minutes is plenty.
-                if (!m.battery) batteryTable = null
-                else if (now - batteryAt > 5 * 60_000L || batteryTable == null) {
+                // batterystats only moves slowly: every 5 minutes, or a minute after a failed read.
+                if (!m.battery) {
+                    batteryTable = null
+                } else if (now - batteryAt > if (batteryTable == null) 60_000L else 5 * 60_000L) {
                     batteryAt = now
                     batteryTable = sampleBattery(m) ?: batteryTable
                 }
             } else {
+                // Keeps the state moving, so the tables come back by themselves when Shizuku does.
+                if (m.shizuku) shizuku.refresh()
                 procTable = null
                 connTable = null
                 wakeTable = null
                 batteryTable = null
+                batteryAt = 0L
                 lastApps = null
                 lastConns = null
                 lastTicks = null
-                listOf("load", "cores", "temps", "media").forEach { external.remove(it) }
+                listOf("load", "cores", "temps").forEach { external.remove(it) }
             }
             publish()
             delay(m.intervalSec * 1000L)
@@ -253,6 +331,8 @@ class LogEngine(
         val out = shizuku.exec("top -b -n 1 -q -o PID,UID,%CPU,RES,NAME") ?: return
         // Hide the sampler itself (sh + top running as shell).
         val procs = Parsers.top(out).filterNot { it.uid == SHELL_UID && (it.name == "top" || it.name == "sh") }
+        // A phone always runs processes: an empty list means top's output was cut short or garbled.
+        if (procs.isEmpty()) return
 
         val appProcs = procs.filter { it.isApp }.associateBy { it.pid }
         val was = lastApps
@@ -280,9 +360,12 @@ class LogEngine(
     }
 
     private suspend fun sampleConns(m: MonitorPrefs, scope: CoroutineScope) {
-        val socks = listOf("tcp", "tcp6", "udp", "udp6").flatMap { proto ->
-            Parsers.procNet(shizuku.readFile("/proc/net/$proto").orEmpty(), proto)
-        }.distinctBy { it.uid to it.remote }
+        val files = NET_PROTOS.associateWith { shizuku.readFile("/proc/net/$it") }
+        // A file that was readable before and isn't now is a failed read, not "no connections".
+        if (files.all { it.value == null } || files.any { (proto, text) -> text == null && proto in netSeen }) return
+        netSeen += files.filterValues { it != null }.keys
+        val socks = files.flatMap { (proto, text) -> Parsers.procNet(text.orEmpty(), proto) }
+            .distinctBy { it.uid to it.remote }
         lastSocks = socks
 
         val keys = socks.map { it.uid to it.remote }.toSet()
@@ -300,13 +383,18 @@ class LogEngine(
             // events wait for them so they can show the hostname.
             resolving += unknown
             scope.launch {
-                val found = shizuku.resolve(unknown)
-                ptr.putAll(found)
-                unresolvable.addAll(unknown.filter { it !in found })
-                resolving -= unknown.toSet()
-                fresh.forEach { emit("conn", connLine(it)) }
-                connTable = connTable(lastSocks, monitor.value)
-                publish()
+                try {
+                    val found = shizuku.resolve(unknown)
+                    ptr.putAll(found)
+                    unresolvable.addAll(unknown.filter { it !in found })
+                    if (unresolvable.size > 4096) unresolvable.clear()
+                    fresh.forEach { emit("conn", connLine(it)) }
+                    connTable = connTable(lastSocks, monitor.value)
+                    publish()
+                } finally {
+                    // Also when the home screen was left mid-lookup: those IPs get another try.
+                    resolving -= unknown.toSet()
+                }
             }
         }
         connTable = connTable(socks, m)
@@ -333,8 +421,9 @@ class LogEngine(
     private fun connLine(s: Sock): String =
         "${uidLabel(s.uid)} → ${s.remote}" + (host(s.remoteIp)?.let { "  $it" } ?: "") + if (s.proto == "udp") "  udp" else ""
 
+    /** Null when `dumpsys power` couldn't be read. */
     private suspend fun sampleWakelocks(m: MonitorPrefs): LogTable? {
-        val locks = Parsers.wakeLocks(shizuku.exec("dumpsys power") ?: return wakeTable)
+        val locks = Parsers.wakeLocks(shizuku.exec("dumpsys power") ?: return null)
         val shown = locks.take(m.wakeRows)
         return LogTable(
             "wakelocks · ${locks.size}",
@@ -387,12 +476,6 @@ class LogEngine(
         val temps = Parsers.temperatures(shizuku.exec("dumpsys thermalservice") ?: return)
         external["temps"] = temps.entries.joinToString("  ") { (k, v) -> String.format(Locale.US, "%s %.1f°", k, v) }
             .ifEmpty { "no sensors reported" }
-    }
-
-    private suspend fun sampleMedia() {
-        val playing = Parsers.nowPlaying(shizuku.exec("dumpsys media_session") ?: return)
-        external["media"] = playing?.let { "${it.title}" + (it.artist?.let { a -> " — $a" } ?: "") + " · ${pkgLabel(it.pkg)}" }
-            ?: "nothing playing"
     }
 
     private suspend fun sampleBattery(m: MonitorPrefs): LogTable? {
@@ -589,23 +672,42 @@ class LogEngine(
         return if (suffix.isEmpty()) label else label + ":" + suffix.joinToString(":")
     }
 
+    /**
+     * The name for a uid from /proc/net, top, dumpsys or network stats. Those
+     * include the work profile's apps (uids like 1010123), and Android refuses
+     * package lookups across users: asking about one threw and crashed the
+     * launcher. So a uid from another user is named through the launcher's own
+     * app list, or through the same app id in SysReadout's user (an app has the
+     * same app id in every user), and marked [w] (or [u<n>] for another user).
+     */
     private fun uidLabel(uid: Int): String = uidNames.getOrPut(uid) {
         when (uid) {
-            -1 -> "?"
+            -4 -> return@getOrPut "removed apps" // NetworkStats.Bucket.UID_REMOVED
+            -5 -> return@getOrPut "tethering" // NetworkStats.Bucket.UID_TETHERING
+        }
+        if (uid < 0) return@getOrPut "?"
+        val user = userOf(uid)
+        val appId = appIdOf(uid)
+        val name = when (appId) {
             0 -> "root"
             1000 -> "system"
             SHELL_UID -> "shell"
-            -4 -> "removed apps" // NetworkStats.Bucket.UID_REMOVED
-            -5 -> "tethering" // NetworkStats.Bucket.UID_TETHERING
-            else -> {
-                val pkgs = pm.getPackagesForUid(uid)?.toList().orEmpty()
-                // Shared uids list several packages; prefer one with a real name.
-                pkgs.firstNotNullOfOrNull { appLabel(it) }
-                    ?: pkgs.firstOrNull()?.let(::shortPkg)
-                    ?: if (uid < FIRST_APP_UID) "uid $uid" else "app $uid"
-            }
+            else -> apps.value.firstOrNull { it.uid == uid }?.let { prefs.value.renames[it.key] ?: it.label }
+                ?: packagesFor(myUser * PER_USER_RANGE + appId).let { pkgs ->
+                    // Shared uids list several packages; prefer one with a real name.
+                    pkgs.firstNotNullOfOrNull { appLabel(it) } ?: pkgs.firstOrNull()?.let(::shortPkg)
+                }
+                ?: if (appId < FIRST_APP_UID) "uid $appId" else "app $appId"
+        }
+        when {
+            user == myUser -> name
+            apps.value.any { it.isWork && userOf(it.uid) == user } -> "$name [w]"
+            else -> "$name [u$user]"
         }
     }
+
+    private fun packagesFor(uid: Int): List<String> =
+        runCatching { pm.getPackagesForUid(uid)?.toList() }.getOrNull().orEmpty()
 
     // --- output ---
 
@@ -644,6 +746,8 @@ class LogEngine(
     }
 
     companion object {
+        private const val TAG = "LogEngine"
+        private val NET_PROTOS = listOf("tcp", "tcp6", "udp", "udp6")
         private const val STREAM_MAX = 300
         private const val SHELL_UID = 2000
         private const val DNS_REPEAT_MS = 5 * 60_000L

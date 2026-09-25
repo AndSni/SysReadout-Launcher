@@ -1,5 +1,6 @@
 package com.asnidev.sysreadout.ui.settings
 
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -49,6 +51,13 @@ sealed interface Page {
     data class Element(val element: StyleElement) : Page { override val title get() = element.title }
     data object About : Page { override val title = "about" }
     data object Crt : Page { override val title = "crt effects" }
+    data object Shizuku : Page { override val title = "shizuku" }
+
+    companion object {
+        /** Top-level pages by name, for `--es page <name>`. */
+        fun byName(name: String): Page? = listOf(Log, Appearance, About, Crt, Shizuku)
+            .firstOrNull { it.title.substringBefore(' ') == name.lowercase() }
+    }
 }
 
 @Composable
@@ -57,6 +66,13 @@ fun SettingsScreen(vm: LauncherViewModel) {
     val page = stack.last()
     val open: (Page) -> Unit = { stack = stack + it }
     val back = { stack = stack.dropLast(1) }
+
+    LaunchedEffect(vm.requestedPage) {
+        vm.requestedPage?.let {
+            stack = listOf(Page.Root, it)
+            vm.requestedPage = null
+        }
+    }
 
     BackHandler(enabled = stack.size > 1, onBack = back)
 
@@ -67,11 +83,12 @@ fun SettingsScreen(vm: LauncherViewModel) {
                 Header(stack.drop(1).map { it.title }, onBack = if (stack.size > 1) back else null)
                 when (page) {
                     Page.Root -> RootPage(vm, open)
-                    Page.Log -> LogPage(vm)
+                    Page.Log -> LogPage(vm, open)
                     Page.Appearance -> AppearancePage(vm, open)
                     is Page.Element -> ElementPage(vm, page.element)
                     Page.About -> AboutPage()
                     Page.Crt -> CrtPage(vm)
+                    Page.Shizuku -> ShizukuPage(vm)
                 }
             }
         }
@@ -85,10 +102,22 @@ private fun RootPage(vm: LauncherViewModel, open: (Page) -> Unit) {
     val context = LocalContext.current
     val prefs by vm.prefs.collectAsState()
     val apps by vm.apps.collectAsState()
+    val monitor by vm.monitor.collectAsState()
+    val shizuku by vm.shizuku.state.collectAsState()
+    val safe by vm.safeMode.collectAsState()
     var picking by remember { mutableStateOf<Picking?>(null) }
 
     fun appName(key: AppKey?): String =
         key?.let { k -> apps.firstOrNull { it.key == k }?.let(vm::label) } ?: "none"
+
+    if (safe) {
+        Section("safe mode")
+        Note(
+            "sysreadout crashed twice right after starting, so the log, the system monitor, shizuku, " +
+                "the dns monitor and your look are paused. the crash report is under about.",
+        )
+        Link("resume", "switch everything back on ›") { vm.leaveSafeMode() }
+    }
 
     if (!SystemActions.isDefaultLauncher(context)) {
         Section("launcher")
@@ -98,6 +127,7 @@ private fun RootPage(vm: LauncherViewModel, open: (Page) -> Unit) {
     Section("screens")
     Link("appearance", "fonts · colours · presets ›") { open(Page.Appearance) }
     Link("log", "${prefs.logRows.size} rows ›") { open(Page.Log) }
+    Link("shizuku", (if (monitor.shizuku) shizuku.label else "off · optional") + " ›") { open(Page.Shizuku) }
 
     Section("home")
     Toggle("clock", prefs.showClock) { v -> vm.update { it.copy(showClock = v) } }
@@ -116,9 +146,13 @@ private fun RootPage(vm: LauncherViewModel, open: (Page) -> Unit) {
     Section("gestures")
     Link("swipe left", appName(prefs.swipeLeft)) { picking = Picking.LEFT }
     Link("swipe right", appName(prefs.swipeRight)) { picking = Picking.RIGHT }
-    Toggle("double-tap to lock", prefs.doubleTapLock) { v ->
-        vm.update { it.copy(doubleTapLock = v) }
-        if (v && !LockService.isRunning) SystemActions.openAccessibilitySettings(context)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        Toggle("double-tap to lock", prefs.doubleTapLock) { v ->
+            vm.update { it.copy(doubleTapLock = v) }
+            if (v && !LockService.isRunning) SystemActions.openAccessibilitySettings(context)
+        }
+    } else {
+        Note("double-tap to lock needs Android 9 or newer.")
     }
 
     Section("hidden apps")
@@ -168,11 +202,14 @@ private fun LockScreenSection(vm: LauncherViewModel) {
             }
         },
     ) { v ->
+        val was = prefs.lockMode
         vm.update { it.copy(lockMode = v) }
         if (v == LockMode.SNAPSHOT) vm.updateLockSnapshot()
+        // Leaving image or snapshot: take SysReadout's picture off the lock screen again.
+        if (v == LockMode.OFF && was != LockMode.OFF) scope.launch(Dispatchers.IO) { LockScreen.clear(context) }
     }
     when (prefs.lockMode) {
-        LockMode.OFF -> Note("SysReadout doesn't touch your lock-screen wallpaper.")
+        LockMode.OFF -> Note("SysReadout doesn't touch your lock-screen wallpaper. switching here from image or snapshot gives the lock screen your home wallpaper back.")
         LockMode.IMAGE -> Link("choose image") { picker.launch(arrayOf("image/*")) }
         LockMode.SNAPSHOT -> {
             Link("update now") {

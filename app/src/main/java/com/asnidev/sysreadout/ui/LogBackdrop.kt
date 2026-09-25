@@ -1,5 +1,6 @@
 package com.asnidev.sysreadout.ui
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -32,11 +33,24 @@ import com.asnidev.sysreadout.data.HAlign
 import com.asnidev.sysreadout.data.LogLayout
 import com.asnidev.sysreadout.data.StyleElement
 import com.asnidev.sysreadout.log.FeedItem
+import kotlinx.coroutines.CancellationException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val STAMP = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
+private val STAMP = DateTimeFormatter.ofPattern("HH:mm:ss")
+
+/** In the phone's zone at the moment of drawing, so travelling doesn't leave stale times. */
+private fun stamp(time: Long): String = STAMP.format(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()))
+
+private val SAFE_MODE_LINES = listOf(
+    "safe  sysreadout crashed twice right after starting,",
+    "      so it started in safe mode: the log, the system",
+    "      monitor, shizuku, the dns monitor and your look",
+    "      are paused. tap \"resume\" on the home screen to",
+    "      switch them back on. the crash report is in",
+    "      settings › about.",
+)
 
 /**
  * The log behind the home screen: the banner, then either the classic layout
@@ -49,12 +63,29 @@ fun LogBackdrop(vm: LauncherViewModel, modifier: Modifier = Modifier) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val prefs by vm.prefs.collectAsState()
     val frame by vm.engine.frame.collectAsState()
+    val safe by vm.safeMode.collectAsState()
 
-    LaunchedEffect(lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { vm.engine.run() }
+    LaunchedEffect(lifecycle, safe) {
+        if (safe) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            // The engine supervises its own loops; this is only the last line of defence.
+            try {
+                vm.engine.run()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("LogBackdrop", "log engine stopped", e)
+            }
+        }
     }
 
     val log = styled.log
+    if (safe) {
+        Column(modifier.systemBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            SAFE_MODE_LINES.forEach { Line(it, log) }
+        }
+        return
+    }
     val dim = log.color.copy(alpha = 0.55f)
     val layout = vm.previewLayout ?: prefs.logLayout
     val newestAtTop = vm.previewFeedTop ?: prefs.feedNewestAtTop
@@ -95,7 +126,7 @@ fun LogBackdrop(vm: LauncherViewModel, modifier: Modifier = Modifier) {
             // Newest line at the bottom; older lines scroll off the top.
             LazyColumn(Modifier.fillMaxWidth().fillMaxSize(), reverseLayout = true, userScrollEnabled = false) {
                 itemsIndexed(frame.stream.asReversed()) { i, line ->
-                    val text = if (prefs.streamTimestamps) "${STAMP.format(Instant.ofEpochMilli(line.time))} ${line.text}" else line.text
+                    val text = if (prefs.streamTimestamps) "${stamp(line.time)} ${line.text}" else line.text
                     Line(text, log, log.color.copy(alpha = if (i == 0) 1f else 0.6f))
                 }
             }
@@ -118,7 +149,7 @@ private fun ColumnScope.Feed(vm: LauncherViewModel, items: List<FeedItem>, newes
         Column(Modifier.fillMaxSize(), verticalArrangement = if (newestAtTop) Arrangement.Top else Arrangement.Bottom) {
             val shown = items.take(fits)
             (if (newestAtTop) shown else shown.asReversed()).forEach { item ->
-                val text = if (stamps && item.time != null) "${STAMP.format(Instant.ofEpochMilli(item.time))} ${item.text}" else item.text
+                val text = if (stamps && item.time != null) "${stamp(item.time)} ${item.text}" else item.text
                 Line(text, log)
             }
         }

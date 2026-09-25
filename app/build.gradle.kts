@@ -41,9 +41,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig =
-                if (keystoreProperties.isNotEmpty()) signingConfigs.getByName("release")
-                else signingConfigs.getByName("debug")
+            // Without keystore.properties (e.g. on F-Droid's build server) the release APK is
+            // left unsigned, as F-Droid expects; it then compares that build with ours.
+            signingConfig = if (keystoreProperties.isNotEmpty()) signingConfigs.getByName("release") else null
         }
     }
 
@@ -92,4 +92,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    // The real org.json: android.jar's copy only has stubs that throw in unit tests.
+    testImplementation("org.json:json:20240303")
 }

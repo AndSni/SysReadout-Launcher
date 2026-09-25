@@ -1,21 +1,40 @@
 package com.asnidev.sysreadout.data
 
 import android.content.Context
+import android.util.Log
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
+import java.io.IOException
 
-private val Context.dataStore by preferencesDataStore("launcher")
+// A corrupt settings file is replaced by defaults: a launcher that can't read its
+// settings must still start, or the phone has no home screen.
+private val Context.dataStore by preferencesDataStore(
+    name = "launcher",
+    corruptionHandler = ReplaceFileCorruptionHandler {
+        Log.w("SettingsStore", "settings file was corrupt; starting from defaults", it)
+        emptyPreferences()
+    },
+)
 
 class SettingsStore(private val context: Context) {
+
+    private val data: Flow<Preferences> = context.dataStore.data.catch { e ->
+        if (e !is IOException) throw e
+        Log.w("SettingsStore", "couldn't read settings", e)
+        emit(emptyPreferences())
+    }
 
     private object K {
         val pinned = stringPreferencesKey("pinned")
@@ -47,13 +66,13 @@ class SettingsStore(private val context: Context) {
         val feedTop = booleanPreferencesKey("feed_newest_at_top")
     }
 
-    val prefs: Flow<LauncherPrefs> = context.dataStore.data.map(::read)
+    val prefs: Flow<LauncherPrefs> = data.map(::read)
 
-    val theme: Flow<Theme> = context.dataStore.data.map(::readTheme)
+    val theme: Flow<Theme> = data.map(::readTheme)
 
-    val presets: Flow<List<Preset>> = context.dataStore.data.map { presetsFromJson(it[K.presets]) }
+    val presets: Flow<List<Preset>> = data.map { presetsFromJson(it[K.presets]) }
 
-    val monitor: Flow<MonitorPrefs> = context.dataStore.data.map { MonitorPrefs.fromJson(it[K.monitor]) }
+    val monitor: Flow<MonitorPrefs> = data.map { MonitorPrefs.fromJson(it[K.monitor]) }
 
     suspend fun update(transform: (LauncherPrefs) -> LauncherPrefs) {
         context.dataStore.edit { p -> write(p, transform(read(p))) }

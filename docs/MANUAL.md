@@ -54,6 +54,7 @@ Long-press an empty part of the home screen. The header (`sysreadout --config �
 
 - **screens › appearance**: presets, colours, fonts, CRT effects ([section 7](#7-appearance)).
 - **screens › log**: banner, rows, system monitor, stream ([sections 5](#5-the-log) and [6](#6-the-system-monitor)).
+- **screens › shizuku**: the optional deeper monitor, with a guided setup ([section 6](#shizuku)).
 - **home**: clock, date, log background on/off, entry style, horizontal alignment, vertical position.
 - **lock screen**: [section 8](#8-lock-screen).
 - **drawer**, **gestures**, **hidden apps**, **about & licenses**.
@@ -115,7 +116,7 @@ Rows that stay in place and update every few seconds. Under log › *pinned rows
 | `dev` | manufacturer, model, codename | — |  |
 | `self` | SysReadout's own process: pid, memory, threads | — |  |
 | `cpu` | online cores, current clock range, governor | — | yes |
-| `cores` | load of every CPU core in percent | Shizuku |  |
+| `cores` | clock of every CPU core; with Shizuku, its load in percent | — |  |
 | `load` | load average and process count | Shizuku |  |
 | `soc` | chipset and CPU architecture | — | yes |
 | `gpu` | GPU, OpenGL ES and Vulkan versions | — |  |
@@ -143,7 +144,7 @@ Rows that stay in place and update every few seconds. Under log › *pinned rows
 | `sd` | removable storage free / total | — |  |
 | `disp` | resolution, refresh rate, density, brightness | — |  |
 | `audio` | media and ring volume, audio output | — |  |
-| `media` | what's playing and in which app | Shizuku |  |
+| `media` | what's playing and in which app | notification access |  |
 | `alarm` | next alarm | — |  |
 | `env` | light, pressure, altitude, temperature, humidity sensors | — |  |
 | `compass` | heading, pitch and roll | — |  |
@@ -172,6 +173,7 @@ The scrolling part at the bottom: events, newest at the bottom. Timestamps are o
 | `proc` `conn` `logE` `logW` | app processes starting/exiting, new connections, system errors and optionally warnings from logcat (Shizuku) |
 | `dns` | which app looked up which server name (DNS monitor) |
 | `ntf` | which app posted a notification; its title only if you turn *show titles* on (notification access) |
+| `shizk` `err` `tip` | Shizuku connecting or going away; a part of the monitor that stopped after an error, and when it retries; a one-time tip |
 
 Events that happen while another app is open are collected the next time you return home, with their original times.
 
@@ -185,22 +187,27 @@ Settings › log › system monitor › *usage access*. Unlocks: screen-time and
 
 ### Shizuku
 
-[Shizuku](https://shizuku.rikka.app/) runs a helper with the same rights as `adb shell`, started by you. With it, SysReadout shows:
+[Shizuku](https://shizuku.rikka.app/) is a free app that lends SysReadout the access of `adb shell`, only while you allow it. It is optional and off until you switch it on under **settings › shizuku**; everything else in SysReadout works without it. With it, the log also shows:
 
 - **processes** sorted by CPU or memory (`top`), with real app names
 - **connections**: every open TCP/UDP connection per app, with the server's name
 - **wakelocks**: what is keeping the phone awake
 - **battery drain per app** since the last charge, with what used it (screen, CPU, sensors…)
-- rows: **load** average, **cores** (per-core load), **temps** (every hardware temperature sensor), **media** (what's playing)
+- rows: **load** average, **cores** (load per core instead of clocks), **temps** (every hardware temperature sensor)
 - stream: process start/exit, new connections, system errors
 
-Setting up Shizuku:
+**Setting it up.** Settings › shizuku shows a live checklist, *installed › running › allowed › connected*, with a button for the next step:
 
 1. Install Shizuku (from GitHub, IzzyOnDroid or Google Play).
-2. Start it: on Android 11+ via *wireless debugging* following the steps in the Shizuku app (no computer needed), or once over USB with `adb`, or automatically on a rooted phone.
-3. In SysReadout, settings › log › system monitor › shizuku › *grant*.
+2. Start it. On Android 11 and newer no computer is needed: turn on developer options (Settings › About phone › tap *Build number* 7 times), connect to Wi-Fi and switch on *Wireless debugging*. In Shizuku tap *Pairing*, then in Wireless debugging tap *Pair device with pairing code* and type the code into Shizuku's notification. Pairing is done once; after that tap *Start*. On Android 10 and older Shizuku is started from a computer with `adb`. On a rooted phone Shizuku starts itself, or use Sui instead.
+3. Allow SysReadout when Shizuku asks (*allow all the time*).
+4. SysReadout connects by itself.
 
-Without root, Shizuku has to be started again after every reboot.
+**After a reboot.** Without root, Android stops Shizuku at every reboot. On Android 13 and newer, switch on *Start on boot* in Shizuku's settings: it restarts itself over wireless debugging whenever the phone is on a Wi-Fi where you chose *Always allow on this network*. SysReadout notices when Shizuku comes back and reconnects. While Shizuku is away, one `shizk` row in the log says why instead of the tables.
+
+**One-tap setup.** Once Shizuku is connected, *set up access with shizuku* can switch on SysReadout's other access for you: usage access, notification access and the double-tap lock service, the same switches you would flip in Android's settings. It lists what it will change and does nothing until you tap *switch on*. Those grants stay after Shizuku stops.
+
+**If it misbehaves.** SysReadout never lets Shizuku hold up the home screen: every call is time-limited, a failed read keeps the last values instead of reporting everything gone, and a helper that keeps failing is left alone for a while (the `shizk` row says so) before SysReadout tries again. Switching *use shizuku* off stops all of it.
 
 Server names come from reverse DNS by default (*hostnames (reverse dns)*), which often gives provider names such as `…1e100.net` (Google). The DNS monitor gives the names apps actually asked for.
 
@@ -208,7 +215,7 @@ Server names come from reverse DNS by default (*hostnames (reverse dns)*), which
 
 Settings › log › *dns monitor*. It shows which app looks up which server (`Gmail → imap.gmail.com`), and gives the connections table real host names.
 
-How it works: SysReadout starts a VPN that carries **only DNS**. Android sends apps' lookups to a resolver address inside it; each lookup is noted (app, name, returned addresses) and passed on unchanged to your network's normal DNS server. No other traffic goes through it, and nothing is sent anywhere else. This is the only feature that uses the internet permission.
+How it works: SysReadout starts a VPN that carries **only DNS**. Android sends apps' lookups to a resolver address inside it; each lookup is noted (app, name, returned addresses) and passed on unchanged to your network's normal DNS server. Only if the network names no DNS server at all does it fall back to Quad9 (9.9.9.9) and Cloudflare (1.1.1.1). No other traffic goes through it, and nothing is sent anywhere else. This is the only feature that uses the internet permission.
 
 Limits:
 
@@ -218,7 +225,7 @@ Limits:
 
 ### Notification access
 
-Needed for the `ntf` row, the notification stream and the *notifications today* table. Notification titles are kept in memory only and shown only if you turn on *show titles*.
+Needed for the `ntf` and `media` rows, the notification stream and the *notifications today* table. Notification titles are kept in memory only and shown only if you turn on *show titles*.
 
 ## 7. Appearance
 
@@ -259,7 +266,9 @@ The *battery drain per app* table (Shizuku) shows SysReadout's own share too.
 |---|---|
 | A row shows `needs … permission` | Tap the row in settings › log to switch it on again and allow the permission, or grant it in Android's app settings. |
 | Monitor tables are missing | They appear only when their source is available: check *usage access* and *shizuku* under settings › log › system monitor. |
-| `shizuku installed, not running` after a reboot | Start Shizuku again in its app. |
+| `shizk  not running` after a reboot | Start Shizuku again in its app, or let it start on boot (settings › shizuku › *after a reboot*). |
+| The home screen says *safe mode after repeated crashes* | SysReadout crashed twice right after starting, so it came back without the log, Shizuku, the DNS monitor and your look. Tap the note to switch them back on. The crash report is under settings › about, to copy or share with a bug report. |
+| Accessibility or notification access is greyed out (*restricted setting*) | Android 13+ blocks these for apps installed from a downloaded APK. In SysReadout's app info, open the ⋮ menu › *Allow restricted settings*, or use *set up access with shizuku*. |
 | The DNS monitor switches itself off | Another VPN took over, or Private DNS is set to a provider. |
 | `wifi` shows no network name | The `ssid` row needs the location permission *and* location switched on. |
 | Lock-screen snapshot doesn't show | Some phones override lock-screen wallpapers in their own theme settings; set the lock screen there to use the wallpaper. |
@@ -268,4 +277,4 @@ The *battery drain per app* table (Shizuku) shows SysReadout's own share too.
 
 ## 11. Privacy
 
-SysReadout collects nothing and sends nothing: no ads, analytics or tracking. Everything it shows is read on the phone and kept in memory while the home screen is visible. The only network use is the optional DNS monitor, which passes your apps' own lookups to your normal DNS server, and optional reverse-DNS lookups of connection addresses (made by Shizuku's helper process).
+SysReadout collects nothing and sends nothing: no ads, analytics or tracking. Everything it shows is read on the phone and kept in memory while the home screen is visible. The only network use is the optional DNS monitor, which passes your apps' own lookups to your normal DNS server, and optional reverse-DNS lookups of connection addresses (made by Shizuku's helper process). If SysReadout crashes, the crash report stays on the phone (settings › about) until you share or delete it.

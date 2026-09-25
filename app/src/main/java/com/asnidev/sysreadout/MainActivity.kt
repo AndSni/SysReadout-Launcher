@@ -33,6 +33,7 @@ import com.asnidev.sysreadout.ui.LocalStyled
 import com.asnidev.sysreadout.ui.crt
 import com.asnidev.sysreadout.ui.SysReadoutTheme
 import com.asnidev.sysreadout.ui.rememberStyled
+import com.asnidev.sysreadout.ui.settings.Page
 import com.asnidev.sysreadout.ui.settings.SettingsScreen
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -53,11 +54,13 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Debug aids: look at a preset (e.g. its CRT effects) or a set of log rows without
-     * touching saved settings, open a screen (home/drawer/settings), or draw the
-     * lock-screen snapshot to cache/snapshot.png instead of the wallpaper.
+     * touching saved settings, open a screen (home/drawer/settings) or a settings page,
+     * draw the lock-screen snapshot to cache/snapshot.png instead of the wallpaper, or
+     * crash on purpose (`--ez crash true`, twice in a row to try safe mode).
      */
     private fun preview(intent: Intent?) {
         if (!BuildConfig.DEBUG) return
+        if (intent?.getBooleanExtra("crash", false) == true) error("crash requested over adb")
         intent?.getStringExtra("preview")?.let { name ->
             vm.previewTheme = Presets.builtIn.firstOrNull { it.name == name }?.theme
         }
@@ -79,6 +82,12 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra("screen")?.let { name ->
             Screen.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { vm.screen = it }
         }
+        intent?.getStringExtra("page")?.let { name ->
+            Page.byName(name)?.let {
+                vm.requestedPage = it
+                vm.screen = Screen.SETTINGS
+            }
+        }
     }
 
     /** Pressing Home while already home closes the drawer or settings. */
@@ -98,7 +107,9 @@ class MainActivity : ComponentActivity() {
 private fun LauncherRoot(vm: LauncherViewModel, activity: ComponentActivity) {
     val prefs by vm.prefs.collectAsState()
     val saved by vm.theme.collectAsState()
-    val theme = vm.previewTheme ?: saved
+    val safe by vm.safeMode.collectAsState()
+    // Safe mode draws with the default look: an imported font or CRT shader may be what crashed.
+    val theme = if (safe) Presets.default.theme else vm.previewTheme ?: saved
     val styled = rememberStyled(theme, vm.fontsVersion)
     val haze = remember { HazeState() }
 

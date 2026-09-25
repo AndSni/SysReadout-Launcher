@@ -1,49 +1,33 @@
 package com.asnidev.sysreadout.monitor
 
 import java.io.File
-import java.net.InetAddress
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
 /**
  * Shizuku "user service": Shizuku starts this class in its own process with
  * the shell uid, which can see every process and socket. Keep it free of
  * Android app state: it has no Context and no access to SysReadout's storage.
+ * The work itself is in [ShellExec].
  */
 class ShellService : IShellService.Stub() {
 
-    private val lookups = Executors.newFixedThreadPool(4)
-
     override fun destroy() {
-        lookups.shutdownNow()
+        ShellExec.shutdown()
         exitProcess(0)
     }
 
-    override fun exec(command: String, timeoutMs: Long): String {
-        val process = ProcessBuilder("sh", "-c", command).redirectErrorStream(true).start()
-        // Read on a separate thread so a stuck command can't block past the timeout.
-        val output = lookups.submit<String> { process.inputStream.bufferedReader().readText() }
-        return try {
-            output.get(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (e: Exception) {
-            ""
-        } finally {
-            process.destroy()
-        }
-    }
+    override fun protocol(): Int = ShellProtocol.VERSION
 
-    override fun readFile(path: String): String = runCatching { File(path).readText() }.getOrDefault("")
+    override fun exec(command: String, timeoutMs: Long): String? = ShellExec.run(command, timeoutMs)
 
-    override fun resolve(ips: String): String {
-        val jobs = ips.lines().filter { it.isNotBlank() }.map { ip ->
-            ip to lookups.submit<String?> {
-                val host = InetAddress.getByName(ip).canonicalHostName
-                host.takeIf { it != ip }
-            }
-        }
-        return jobs.mapNotNull { (ip, job) ->
-            runCatching { job.get(3, TimeUnit.SECONDS) }.getOrNull()?.let { "$ip\t$it" }
-        }.joinToString("\n")
+    override fun readFile(path: String): String? = runCatching { File(path).readText() }.getOrNull()
+
+    override fun resolve(ips: String): String =
+        ShellExec.resolve(ips.lines().filter { it.isNotBlank() }, RESOLVE_BUDGET_MS)
+            .entries.joinToString("\n") { (ip, host) -> "$ip\t$host" }
+
+    private companion object {
+        /** All lookups of one call together; the caller gives up a little after this. */
+        const val RESOLVE_BUDGET_MS = 3_000L
     }
 }

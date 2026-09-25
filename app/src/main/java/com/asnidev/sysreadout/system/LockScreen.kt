@@ -34,6 +34,12 @@ object LockScreen {
         } != null
     }.onFailure { Log.w(TAG, "couldn't set the lock-screen image", it) }.getOrDefault(false)
 
+    /** Removes SysReadout's lock-screen picture: the lock screen shows the home wallpaper again. */
+    fun clear(context: Context): Boolean = runCatching {
+        WallpaperManager.getInstance(context).clear(WallpaperManager.FLAG_LOCK)
+        true
+    }.onFailure { Log.w(TAG, "couldn't clear the lock-screen wallpaper", it) }.getOrDefault(false)
+
     fun setSnapshot(context: Context, frame: LogFrame, theme: Theme, prefs: LauncherPrefs): Boolean = runCatching {
         val bitmap = render(context, frame, theme, prefs)
         WallpaperManager.getInstance(context).setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)

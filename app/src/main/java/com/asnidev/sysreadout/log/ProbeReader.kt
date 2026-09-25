@@ -6,6 +6,7 @@ import android.app.ActivityManager
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.bluetooth.BluetoothManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -16,6 +17,9 @@ import android.hardware.display.DisplayManager
 import android.location.LocationManager
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.MediaMetadata
+import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.TrafficStats
@@ -44,6 +48,7 @@ import android.telephony.TelephonyManager
 import android.view.Display
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import com.asnidev.sysreadout.monitor.NotifListener
 import com.asnidev.sysreadout.monitor.NotifLog
 import java.io.File
 import java.net.Inet4Address
@@ -89,6 +94,9 @@ class ProbeReader(private val context: Context) {
     /** Rows whose data the engine gathers itself (usage access, Shizuku). */
     var external: (String) -> String? = { null }
 
+    /** The name the user knows a package by; set by the engine. */
+    var appName: (String) -> String = { it }
+
     // Refreshed once per sample() call and shared by the rows that need them.
     private var battery: Intent? = null
     private var meminfo: Map<String, Long> = emptyMap()
@@ -98,6 +106,8 @@ class ProbeReader(private val context: Context) {
     private var lastNetAt = SystemClock.elapsedRealtime()
     private var rxRate = 0L
     private var txRate = 0L
+
+    private var currentInMicroamps = false
 
     private var headroom = Float.NaN
     private var headroomAt = 0L
@@ -178,6 +188,9 @@ class ProbeReader(private val context: Context) {
         "sun" -> sun()
         "steps" -> steps.line()
         "ntf" -> "${NotifLog.active} showing  ${NotifLog.todayTotal()} today"
+        "media" -> media()
+        // Load per core needs Shizuku; the clocks are readable without it.
+        "cores" -> external(id) ?: coreClocks()
         else -> external(id)
     }
 
@@ -213,6 +226,33 @@ class ProbeReader(private val context: Context) {
         val real = freqs.filter { it >= 100_000 }
         val clock = if (real.isEmpty()) "" else "  ${ghz(real.min())}–${ghz(real.max())}GHz"
         return "$cores/$possible cores$clock${governor?.let { "  $it" } ?: ""}"
+    }
+
+    /** Current clock of each core in GHz, "--" for an offline one. */
+    private fun coreClocks(): String {
+        val possible = cpuCount("/sys/devices/system/cpu/possible") ?: Runtime.getRuntime().availableProcessors()
+        val clocks = (0 until possible).map {
+            readText("/sys/devices/system/cpu/cpu$it/cpufreq/scaling_cur_freq")?.trim()?.toLongOrNull()
+        }
+        // Emulators report nonsense like 1 kHz; only show clocks that look real.
+        if (clocks.none { it != null && it >= 100_000 }) return "clocks not reported"
+        return "clock " + clocks.joinToString(" ") { khz ->
+            khz?.takeIf { it >= 100_000 }?.let { String.format(Locale.US, "%.1f", it / 1_000_000.0) } ?: "--"
+        } + " GHz"
+    }
+
+    /** What's playing, from the media sessions notification access lets SysReadout see. */
+    private fun media(): String {
+        val msm = context.getSystemService(MediaSessionManager::class.java) ?: return "n/a"
+        val sessions = msm.getActiveSessions(ComponentName(context, NotifListener::class.java))
+        val playing = sessions.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+            ?: return "nothing playing"
+        val meta = playing.metadata
+        val title = meta?.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
+            ?: meta?.description?.title?.toString()?.takeIf { it.isNotBlank() }
+            ?: "untitled"
+        val artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST)?.takeIf { it.isNotBlank() }
+        return title + (artist?.let { " — $it" } ?: "") + " · " + appName(playing.packageName)
     }
 
     private fun soc(): String {
@@ -642,11 +682,16 @@ class ProbeReader(private val context: Context) {
     private fun batteryTemp(): String =
         String.format(Locale.US, "%.1f", (battery?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10f)
 
-    /** Most devices report µA, a few mA; the sign convention also varies by vendor. */
+    /**
+     * Most devices report µA, a few mA; the sign convention also varies by vendor.
+     * No phone draws 20 A, so a reading above 20 000 settles it as µA for good:
+     * after that a small current (say 12 000 µA near a full charge) isn't misread as 12 A.
+     */
     private fun currentMa(): Int {
         val raw = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
         if (raw == Int.MIN_VALUE) return 0
-        return if (abs(raw) > 20_000) raw / 1000 else raw
+        if (abs(raw) > 20_000) currentInMicroamps = true
+        return if (currentInMicroamps) raw / 1000 else raw
     }
 
     private fun readMeminfo(): Map<String, Long> =

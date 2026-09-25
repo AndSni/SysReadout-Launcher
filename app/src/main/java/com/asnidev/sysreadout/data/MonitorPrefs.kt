@@ -6,6 +6,10 @@ enum class ProcSort { CPU, MEM }
 
 /** What the system monitor shows. Tables whose data source isn't available stay hidden. */
 data class MonitorPrefs(
+    /** Use Shizuku at all. Off: no Shizuku code runs and its tables, rows and events stay hidden. */
+    val shizuku: Boolean = false,
+    /** The one-time log tip about what Shizuku adds has been shown. */
+    val shizukuTip: Boolean = false,
     val procs: Boolean = true,
     val procSort: ProcSort = ProcSort.CPU,
     val procRows: Int = 6,
@@ -39,6 +43,7 @@ data class MonitorPrefs(
     val intervalSec: Int = 5,
 ) {
     fun toJson(): String = JSONObject()
+        .put("shizuku", shizuku).put("shizukuTip", shizukuTip)
         .put("procs", procs).put("procSort", procSort.name).put("procRows", procRows).put("appsOnly", appsOnly)
         .put("conns", conns).put("connRows", connRows).put("resolveHosts", resolveHosts)
         .put("screenTime", screenTime).put("screenRows", screenRows)
@@ -60,6 +65,9 @@ data class MonitorPrefs(
             val d = MonitorPrefs()
             val o = runCatching { JSONObject(s ?: return d) }.getOrElse { return d }
             return MonitorPrefs(
+                // Settings saved before the switch existed used Shizuku whenever it was there.
+                shizuku = o.optBoolean("shizuku", true),
+                shizukuTip = o.optBoolean("shizukuTip", d.shizukuTip),
                 procs = o.optBoolean("procs", d.procs),
                 procSort = runCatching { ProcSort.valueOf(o.optString("procSort")) }.getOrDefault(d.procSort),
                 procRows = o.optInt("procRows", d.procRows),

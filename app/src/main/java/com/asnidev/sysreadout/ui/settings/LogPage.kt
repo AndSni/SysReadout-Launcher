@@ -1,8 +1,6 @@
 package com.asnidev.sysreadout.ui.settings
 
 import android.app.Activity
-import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -42,13 +40,15 @@ import com.asnidev.sysreadout.monitor.DnsLog
 import com.asnidev.sysreadout.monitor.DnsVpnService
 import com.asnidev.sysreadout.monitor.NotifLog
 import com.asnidev.sysreadout.monitor.ShizukuState
+import com.asnidev.sysreadout.system.SystemActions
 import com.asnidev.sysreadout.ui.Palette
 import com.asnidev.sysreadout.ui.Type
 
 @Composable
-fun LogPage(vm: LauncherViewModel) {
+fun LogPage(vm: LauncherViewModel, open: (Page) -> Unit) {
     val context = LocalContext.current
     val prefs by vm.prefs.collectAsState()
+    val monitor by vm.monitor.collectAsState()
     val shown = prefs.logRows.mapNotNull { ProbeCatalog.byId[it] }
 
     // Rows that need a runtime permission ask for it when switched on.
@@ -72,11 +72,15 @@ fun LogPage(vm: LauncherViewModel) {
             }
             needs == Access.NOTIFICATIONS && !NotifLog.connected -> {
                 vm.toggleRow(probe.id)
-                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                SystemActions.openNotificationAccess(context)
             }
             needs == Access.USAGE && !vm.engine.usage.hasAccess() -> {
                 vm.toggleRow(probe.id)
                 vm.engine.usage.openSettings()
+            }
+            needs == Access.SHIZUKU && !monitor.shizuku -> {
+                vm.toggleRow(probe.id)
+                open(Page.Shizuku)
             }
             else -> vm.toggleRow(probe.id)
         }
@@ -120,7 +124,7 @@ fun LogPage(vm: LauncherViewModel) {
     }
     Note("the log only samples while the home screen is visible.")
 
-    MonitorSection(vm)
+    MonitorSection(vm, open)
 
     Section("stream")
     Note("events scroll up from the bottom of the screen.")
@@ -129,66 +133,32 @@ fun LogPage(vm: LauncherViewModel) {
 }
 
 @Composable
-private fun MonitorSection(vm: LauncherViewModel) {
+private fun MonitorSection(vm: LauncherViewModel, open: (Page) -> Unit) {
     val context = LocalContext.current
     val m by vm.monitor.collectAsState()
     val shizuku by vm.shizuku.state.collectAsState()
-    // Re-check access whenever we come back from system settings or the Shizuku app.
+    // Re-check access whenever we come back from system settings.
     var usageAccess by remember { mutableStateOf(vm.engine.usage.hasAccess()) }
+    var notifAccess by remember { mutableStateOf(NotifLog.connected) }
     LifecycleResumeEffect(Unit) {
         usageAccess = vm.engine.usage.hasAccess()
-        vm.shizuku.refresh()
+        notifAccess = NotifLog.connected
         onPauseOrDispose {}
     }
     fun set(transform: (MonitorPrefs) -> MonitorPrefs) = vm.updateMonitor(transform)
 
     Section("system monitor")
-    Note("tables and events from what Android lets SysReadout see. processes and connections need Shizuku (shell access you start yourself); app activity needs usage access.")
+    Note("tables and events from what android lets sysreadout see. app activity needs usage access; the notification log needs notification access.")
     Link("usage access", if (usageAccess) "granted" else "grant ›") { vm.engine.usage.openSettings() }
-    Link("notification access", if (NotifLog.connected) "granted" else "grant ›") {
-        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
-    Link(
-        "shizuku",
-        when (shizuku) {
-            ShizukuState.NOT_INSTALLED -> "get it ›"
-            ShizukuState.NOT_RUNNING -> "start it ›"
-            ShizukuState.NO_PERMISSION -> "grant ›"
-            else -> shizuku.label
-        },
-    ) {
-        when (shizuku) {
-            ShizukuState.NOT_INSTALLED -> context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app/download/")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-            ShizukuState.NOT_RUNNING -> vm.shizuku.openApp()
-            ShizukuState.NO_PERMISSION -> vm.shizuku.requestPermission()
-            else -> vm.shizuku.refresh()
-        }
-    }
-    if (shizuku == ShizukuState.NOT_RUNNING) {
-        Note("open Shizuku and start it with wireless debugging (or adb, or root). it has to be restarted after every reboot unless you have root.")
-    }
+    Link("notification access", if (notifAccess) "granted" else "grant ›") { SystemActions.openNotificationAccess(context) }
+    Link("shizuku", (if (m.shizuku) shizuku.label else "off · optional") + " ›") { open(Page.Shizuku) }
     Cycle("monitor refresh", m.intervalSec, MonitorPrefs.INTERVALS, show = { "${it}s" }) { v -> set { it.copy(intervalSec = v) } }
 
     Text("  ## tables", style = Type.small, color = Palette.log, modifier = Modifier.padding(top = 8.dp))
-    Toggle("processes · shizuku", m.procs) { v -> set { it.copy(procs = v) } }
-    if (m.procs) {
-        Cycle("  sort by", m.procSort, ProcSort.entries) { v -> set { it.copy(procSort = v) } }
-        Rows("  rows", m.procRows) { v -> set { it.copy(procRows = v) } }
-        Toggle("  apps only", m.appsOnly) { v -> set { it.copy(appsOnly = v) } }
-    }
-    Toggle("connections · shizuku", m.conns) { v -> set { it.copy(conns = v) } }
-    if (m.conns) Rows("  rows", m.connRows) { v -> set { it.copy(connRows = v) } }
-    Toggle("  hostnames (reverse dns)", m.resolveHosts) { v -> set { it.copy(resolveHosts = v) } }
     Toggle("screen time today · usage", m.screenTime) { v -> set { it.copy(screenTime = v) } }
     if (m.screenTime) Rows("  rows", m.screenRows) { v -> set { it.copy(screenRows = v) } }
     Toggle("traffic today · usage", m.traffic) { v -> set { it.copy(traffic = v) } }
     if (m.traffic) Rows("  rows", m.trafficRows) { v -> set { it.copy(trafficRows = v) } }
-    Toggle("wakelocks · shizuku", m.wakelocks) { v -> set { it.copy(wakelocks = v) } }
-    if (m.wakelocks) Rows("  rows", m.wakeRows) { v -> set { it.copy(wakeRows = v) } }
-    Toggle("battery drain per app · shizuku", m.battery) { v -> set { it.copy(battery = v) } }
-    if (m.battery) Rows("  rows", m.batteryRows) { v -> set { it.copy(batteryRows = v) } }
     Toggle("notifications today · notification access", m.notifTable) { v -> set { it.copy(notifTable = v) } }
     if (m.notifTable) Rows("  rows", m.notifRows) { v -> set { it.copy(notifRows = v) } }
 
@@ -196,14 +166,35 @@ private fun MonitorSection(vm: LauncherViewModel) {
     Toggle("app switches · usage", m.evApps) { v -> set { it.copy(evApps = v) } }
     Toggle("foreground services · usage", m.evServices) { v -> set { it.copy(evServices = v) } }
     Toggle("screen & lock · usage", m.evScreen) { v -> set { it.copy(evScreen = v) } }
-    Toggle("process start / exit · shizuku", m.evProcs) { v -> set { it.copy(evProcs = v) } }
-    Toggle("new connections · shizuku", m.evConns) { v -> set { it.copy(evConns = v) } }
     Toggle("dns lookups · dns monitor", m.evDns) { v -> set { it.copy(evDns = v) } }
     Toggle("notifications · notification access", m.evNotif) { v -> set { it.copy(evNotif = v) } }
     if (m.evNotif) Toggle("  show titles", m.notifTitles) { v -> set { it.copy(notifTitles = v) } }
-    Toggle("system errors (logcat) · shizuku", m.evLogcat) { v -> set { it.copy(evLogcat = v) } }
-    if (m.evLogcat) Toggle("  include warnings", m.logcatWarnings) { v -> set { it.copy(logcatWarnings = v) } }
     Toggle("network, power, battery, installs", m.evSystem) { v -> set { it.copy(evSystem = v) } }
+
+    Text("  ## with shizuku", style = Type.small, color = Palette.log, modifier = Modifier.padding(top = 8.dp))
+    if (!m.shizuku) {
+        Note("processes, every connection per app, wakelocks, battery drain per app and system errors. shizuku is off.")
+        Link("set up shizuku", "›") { open(Page.Shizuku) }
+    } else {
+        if (shizuku != ShizukuState.READY) Note("shizuku: ${shizuku.label}. these start by themselves once it connects.")
+        Toggle("processes", m.procs) { v -> set { it.copy(procs = v) } }
+        if (m.procs) {
+            Cycle("  sort by", m.procSort, ProcSort.entries) { v -> set { it.copy(procSort = v) } }
+            Rows("  rows", m.procRows) { v -> set { it.copy(procRows = v) } }
+            Toggle("  apps only", m.appsOnly) { v -> set { it.copy(appsOnly = v) } }
+        }
+        Toggle("connections", m.conns) { v -> set { it.copy(conns = v) } }
+        if (m.conns) Rows("  rows", m.connRows) { v -> set { it.copy(connRows = v) } }
+        Toggle("  hostnames (reverse dns)", m.resolveHosts) { v -> set { it.copy(resolveHosts = v) } }
+        Toggle("wakelocks", m.wakelocks) { v -> set { it.copy(wakelocks = v) } }
+        if (m.wakelocks) Rows("  rows", m.wakeRows) { v -> set { it.copy(wakeRows = v) } }
+        Toggle("battery drain per app", m.battery) { v -> set { it.copy(battery = v) } }
+        if (m.battery) Rows("  rows", m.batteryRows) { v -> set { it.copy(batteryRows = v) } }
+        Toggle("process start / exit events", m.evProcs) { v -> set { it.copy(evProcs = v) } }
+        Toggle("new connection events", m.evConns) { v -> set { it.copy(evConns = v) } }
+        Toggle("system errors (logcat)", m.evLogcat) { v -> set { it.copy(evLogcat = v) } }
+        if (m.evLogcat) Toggle("  include warnings", m.logcatWarnings) { v -> set { it.copy(logcatWarnings = v) } }
+    }
 
     DnsMonitorSection(vm)
 }

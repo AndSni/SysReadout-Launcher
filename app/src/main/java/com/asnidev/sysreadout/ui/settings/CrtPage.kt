@@ -26,8 +26,9 @@ fun CrtPage(vm: LauncherViewModel) {
 
     Section("animated")
     Note("these redraw the screen about 20 times a second while it's visible, which costs battery.")
-    Strength("flicker", c.flicker) { v -> set { it.copy(flicker = v) } }
-    Strength("grain", c.grain) { v -> set { it.copy(grain = v) } }
+    Strength("flicker", c.flicker, enabled = modern) { v -> set { it.copy(flicker = v) } }
+    Strength("grain", c.grain, enabled = modern) { v -> set { it.copy(grain = v) } }
+    if (!modern) Note("flicker and grain need Android 13 or newer.")
 
     Section("scope")
     Toggle("menu, clock and date too", c.menuToo) { v -> set { it.copy(menuToo = v) } }

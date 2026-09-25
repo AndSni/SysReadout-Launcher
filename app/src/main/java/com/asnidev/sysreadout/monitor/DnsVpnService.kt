@@ -11,6 +11,7 @@ import android.system.Os
 import android.system.OsConstants
 import android.system.StructPollfd
 import android.util.Log
+import com.asnidev.sysreadout.system.CrashGuard
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
@@ -18,7 +19,10 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
@@ -30,13 +34,17 @@ import kotlin.concurrent.thread
  */
 class DnsVpnService : VpnService() {
 
-    private var tun: ParcelFileDescriptor? = null
+    @Volatile private var tun: ParcelFileDescriptor? = null
     @Volatile private var running = false
-    private val pool = Executors.newFixedThreadPool(4)
+    // Bounded: while the network is down, queries back up; drop the oldest (the app retries) rather than pile up.
+    private val pool = ThreadPoolExecutor(
+        4, 4, 30, TimeUnit.SECONDS, ArrayBlockingQueue(128), ThreadPoolExecutor.DiscardOldestPolicy(),
+    )
     private val cm by lazy { getSystemService(ConnectivityManager::class.java) }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
+        // Android restarts this service on its own (sticky, always-on VPN): in safe mode, refuse.
+        if (intent?.action == ACTION_STOP || CrashGuard.isSafeMode(this)) {
             shutdown()
             stopSelf()
             return START_NOT_STICKY
@@ -118,16 +126,32 @@ class DnsVpnService : VpnService() {
             } catch (e: IOException) {
                 if (running) Log.w(TAG, "tun read failed", e)
                 break
+            } catch (e: RejectedExecutionException) { // the service is being destroyed
+                break
+            } catch (e: Exception) {
+                if (running) Log.w(TAG, "dns monitor loop failed", e)
+                break
             }
+        }
+        // Ending on its own leaves the VPN up with nobody answering: every lookup on
+        // the phone would hang. Take it down instead.
+        if (running) {
+            Log.w(TAG, "dns monitor stopped reading; shutting it down")
+            shutdown()
+            stopSelf()
         }
     }
 
     private fun answer(query: UdpPacket, uid: Int, output: FileOutputStream) {
-        val response = relay(query.payload) ?: return
-        val reply = Packets.buildUdp4(query.dstIp, query.srcIp, query.dstPort, query.srcPort, response)
-        synchronized(output) { runCatching { output.write(reply) } }
-        Dns.question(query.payload)?.let { q ->
-            DnsLog.add(DnsLog.Lookup(System.currentTimeMillis(), uid, q.name, Dns.addresses(response)))
+        try {
+            val response = relay(query.payload) ?: return
+            val reply = Packets.buildUdp4(query.dstIp, query.srcIp, query.dstPort, query.srcPort, response)
+            synchronized(output) { runCatching { output.write(reply) } }
+            Dns.question(query.payload)?.let { q ->
+                DnsLog.add(DnsLog.Lookup(System.currentTimeMillis(), uid, q.name, Dns.addresses(response)))
+            }
+        } catch (e: Exception) { // a thrown exception on a pool thread would crash the launcher
+            Log.w(TAG, "couldn't answer a lookup", e)
         }
     }
 
@@ -179,12 +203,15 @@ class DnsVpnService : VpnService() {
         /** Null when the user has already allowed the VPN; otherwise the consent screen to show. */
         fun consentIntent(context: Context): Intent? = prepare(context)
 
-        fun start(context: Context) {
-            context.startService(Intent(context, DnsVpnService::class.java))
-        }
+        /** False when Android refused (e.g. SysReadout isn't in the foreground). */
+        fun start(context: Context): Boolean = runCatching {
+            context.startService(Intent(context, DnsVpnService::class.java)) != null
+        }.onFailure { Log.w(TAG, "couldn't start the DNS monitor", it) }.getOrDefault(false)
 
         fun stop(context: Context) {
-            if (DnsLog.running.value) context.startService(Intent(context, DnsVpnService::class.java).setAction(ACTION_STOP))
+            if (!DnsLog.running.value) return
+            runCatching { context.startService(Intent(context, DnsVpnService::class.java).setAction(ACTION_STOP)) }
+                .onFailure { Log.w(TAG, "couldn't stop the DNS monitor", it) }
         }
     }
 }

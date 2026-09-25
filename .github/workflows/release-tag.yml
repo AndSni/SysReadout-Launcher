@@ -5,7 +5,7 @@ name: release-tag
 # check (Binaries + AllowedAPKSigningKeys in .fdroid.yml) diffs its own
 # from-source build against this file, so it must never be overwritten.
 #
-# Signing secrets: see release.yml. Without them the APK is debug-signed and
+# Signing secrets: see release.yml. Without them the APK is unsigned and
 # won't match AllowedAPKSigningKeys.
 
 on:
@@ -56,7 +56,7 @@ jobs:
             } > keystore.properties
             echo "Release signing configured."
           else
-            echo "No RELEASE_KEYSTORE_B64 secret — APK will be debug-signed."
+            echo "No RELEASE_KEYSTORE_B64 secret — APK will be unsigned."
           fi
 
       - name: Assemble release

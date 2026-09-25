@@ -11,6 +11,7 @@ import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
+import com.asnidev.sysreadout.system.SystemActions
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -39,9 +40,7 @@ class UsageSource(private val context: Context) {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
-    fun openSettings() {
-        context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
+    fun openSettings() = SystemActions.open(context, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
 
     fun events(from: Long, to: Long): List<UsageEvent> {
         val out = mutableListOf<UsageEvent>()

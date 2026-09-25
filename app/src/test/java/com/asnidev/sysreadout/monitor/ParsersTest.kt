@@ -1,6 +1,7 @@
 package com.asnidev.sysreadout.monitor
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -59,6 +60,17 @@ class ParsersTest {
     private fun flipWords(bigEndian: String) = bigEndian.chunked(8).joinToString("") { w -> w.chunked(2).reversed().joinToString("") }
 
     @Test
+    fun workProfileUids() {
+        // The crash on a phone with a work profile: uid 1010460 is app 10460 in user 10.
+        assertEquals(10, userOf(1_010_460))
+        assertEquals(10_460, appIdOf(1_010_460))
+        assertEquals(0, userOf(10_460))
+        assertTrue(Proc(1, 1_010_460, 0f, 0, "com.example").isApp)
+        assertFalse("the work profile's system_server-side uid", Proc(1, 1_001_000, 0f, 0, "system").isApp)
+        assertEquals(1_010_195, Parsers.batteryUid("u10a195"))
+    }
+
+    @Test
     fun pmPackages() {
         val out = """
             package:com.android.systemui uid:10167
@@ -100,19 +112,6 @@ class ShellParsersTest {
             listOf(WakeLock("partial", "AudioMix", 10123), WakeLock("screen_bright", "WindowManager", 1000)),
             Parsers.wakeLocks(out),
         )
-    }
-
-    @Test
-    fun nowPlayingFindsThePlayingSession() {
-        val out = """
-                package=com.google.android.googlequicksearchbox
-                state=PlaybackState {state=NONE(0), position=0}
-                metadata: size=0, description=null, null, null
-                package=com.spotify.music
-                state=PlaybackState {state=PLAYING(3), position=12345}
-                metadata: size=11, description=Paranoid Android, Radiohead, OK Computer
-        """.trimIndent()
-        assertEquals(NowPlaying("com.spotify.music", "Paranoid Android", "Radiohead"), Parsers.nowPlaying(out))
     }
 
     @Test

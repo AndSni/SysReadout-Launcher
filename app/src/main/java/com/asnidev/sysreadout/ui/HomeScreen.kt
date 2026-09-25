@@ -117,6 +117,8 @@ fun HomeScreen(vm: LauncherViewModel, haze: HazeState) {
             .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = horizontal,
     ) {
+        val safe by vm.safeMode.collectAsState()
+        if (safe) SafeModeNote(prefs.entryStyle, haze, styled, onResume = vm::leaveSafeMode)
         if (prefs.showClock || prefs.showDate) ClockBlock(prefs.showClock, prefs.showDate, horizontal, prefs.entryStyle, haze, styled)
 
         val measurer = rememberTextMeasurer()
@@ -243,6 +245,22 @@ private fun ClockBlock(
             )
         }
     }
+}
+
+/** Shown in safe mode: what happened and the one tap that undoes it. */
+@Composable
+private fun SafeModeNote(style: EntryStyle, haze: HazeState, styled: Styled, onResume: () -> Unit) {
+    val ink = styled.date.color
+    Text(
+        styled.text(StyleElement.DATE, "safe mode after repeated crashes · tap to resume"),
+        style = styled.date,
+        color = styled.ink(style, ink),
+        modifier = Modifier
+            .padding(bottom = 12.dp)
+            .backing(style, haze, styled, ink)
+            .clickable(onClick = onResume)
+            .padding(horizontal = EntryPadH, vertical = EntryPadV),
+    )
 }
 
 @Composable

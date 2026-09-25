@@ -12,8 +12,9 @@ The readout:
 * Two layouts: classic sections, or a feed where new lines push older ones off the screen, so any amount of data fits.
 
 Deeper monitoring, when you allow it:
-* With Shizuku: processes by CPU or memory, every connection per app with server names, wakelocks, per-app battery drain, temperatures, per-core load and system errors.
+* With Shizuku (optional, with a guided setup): processes by CPU or memory, every connection per app with server names, wakelocks, per-app battery drain, temperatures, per-core load and system errors. Once connected, it can also switch on the access below in one tap.
 * With usage access: screen time, unlocks, traffic per app and data used this month.
+* With notification access: a notification log and per-app table, and what's playing.
 * With the optional DNS monitor (a local VPN that only carries DNS): which app looks up which server.
 * With location, phone, Bluetooth or activity permission: GPS and satellites, cell tower and 5G details, connected Bluetooth devices and their battery, steps.
 Every permission is asked only when you switch on the row that needs it.
