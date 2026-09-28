@@ -8,11 +8,13 @@ an old CRT terminal. Built for people who like to know what their phone is doing
 SRL for short.
 
 <p>
-<img src="metadata/en-US/images/phoneScreenshots/01_wasteland.png" width="200" alt="Wasteland preset: green phosphor terminal with CRT curvature">
-<img src="metadata/en-US/images/phoneScreenshots/02_amber.png" width="200" alt="Amber P3 preset with DOS font">
-<img src="metadata/en-US/images/phoneScreenshots/03_default.png" width="200" alt="Default preset">
-<img src="metadata/en-US/images/phoneScreenshots/06_settings.png" width="200" alt="Settings">
+<img src="metadata/en-US/images/phoneScreenshots/01_wasteland.png" width="190" alt="Wasteland preset: green phosphor terminal with CRT curvature, processes and connections from Shizuku">
+<img src="metadata/en-US/images/phoneScreenshots/02_clean.png" width="190" alt="A clean home screen: the minimal preset with the log switched off">
+<img src="metadata/en-US/images/phoneScreenshots/03_amber_feed.png" width="190" alt="Amber P3 preset with the feed layout">
+<img src="metadata/en-US/images/phoneScreenshots/09_presets.png" width="190" alt="The seven built-in presets in settings">
 </p>
+
+From a full CRT terminal to a plain list of apps: every look, the log and each effect can be switched on or off.
 
 ## Features
 

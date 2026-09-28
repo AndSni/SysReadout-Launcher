@@ -18,6 +18,9 @@ import androidx.lifecycle.viewModelScope
 import com.asnidev.sysreadout.apps.AppEntry
 import com.asnidev.sysreadout.apps.AppRepository
 import com.asnidev.sysreadout.data.AppKey
+import com.asnidev.sysreadout.data.EntryStyle
+import com.asnidev.sysreadout.data.HAlign
+import com.asnidev.sysreadout.data.VAlign
 import com.asnidev.sysreadout.data.LauncherPrefs
 import com.asnidev.sysreadout.data.LockMode
 import com.asnidev.sysreadout.data.LogLayout
@@ -59,6 +62,35 @@ import java.io.File
 
 enum class Screen { HOME, DRAWER, SETTINGS }
 
+/**
+ * Debug builds only: home-screen settings to show without saving them, for
+ * screenshots and quick looks. Null fields keep the saved value.
+ */
+data class HomePreview(
+    /** App labels, in order. */
+    val pinned: List<String>? = null,
+    val style: EntryStyle? = null,
+    val showLog: Boolean? = null,
+    val showClock: Boolean? = null,
+    val showDate: Boolean? = null,
+    val hAlign: HAlign? = null,
+    val vAlign: VAlign? = null,
+    val shizuku: Boolean? = null,
+) {
+    fun applyTo(m: MonitorPrefs): MonitorPrefs = shizuku?.let { m.copy(shizuku = it) } ?: m
+
+    fun applyTo(p: LauncherPrefs, apps: List<AppEntry>): LauncherPrefs = if (this == HomePreview()) p else p.copy(
+        pinned = pinned?.mapNotNull { label -> apps.firstOrNull { !it.isWork && it.label.equals(label, ignoreCase = true) }?.key }
+            ?: p.pinned,
+        entryStyle = style ?: p.entryStyle,
+        showLog = showLog ?: p.showLog,
+        showClock = showClock ?: p.showClock,
+        showDate = showDate ?: p.showDate,
+        hAlign = hAlign ?: p.hAlign,
+        vAlign = vAlign ?: p.vAlign,
+    )
+}
+
 class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     // Background work that fails is logged, never allowed to crash the home screen.
@@ -75,14 +107,19 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SettingsStore(app)
 
     val apps: StateFlow<List<AppEntry>> = repo.apps
+    /** Debug builds only: home settings shown without being saved (`--es pinned …`, see MainActivity). */
+    val homePreview = MutableStateFlow(HomePreview())
+
     val prefs: StateFlow<LauncherPrefs> =
-        store.prefs.stateIn(scope, SharingStarted.Eagerly, LauncherPrefs())
+        combine(store.prefs, homePreview, repo.apps) { p, preview, apps -> preview.applyTo(p, apps) }
+            .stateIn(scope, SharingStarted.Eagerly, LauncherPrefs())
     val theme: StateFlow<Theme> =
         store.theme.stateIn(scope, SharingStarted.Eagerly, Presets.default.theme)
     val userPresets: StateFlow<List<Preset>> =
         store.presets.stateIn(scope, SharingStarted.Eagerly, emptyList())
     val monitor: StateFlow<MonitorPrefs> =
-        store.monitor.stateIn(scope, SharingStarted.Eagerly, MonitorPrefs())
+        combine(store.monitor, homePreview) { m, preview -> preview.applyTo(m) }
+            .stateIn(scope, SharingStarted.Eagerly, MonitorPrefs())
 
     /** Completed once the saved settings have reached [prefs] and [monitor] (they start as defaults). */
     private val settingsLoaded = CompletableDeferred<Unit>()
@@ -131,9 +168,11 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
                 val p = store.prefs.first()
                 // The StateFlows catch up on this same main thread a moment later.
                 withTimeoutOrNull(2_000) {
-                    monitor.first { it == m }
-                    prefs.first { it == p }
+                    monitor.first { it == homePreview.value.applyTo(m) }
+                    prefs.first { it == homePreview.value.applyTo(p, repo.apps.value) }
                 }
+                // Before the log starts, so its first line already knows whether Shizuku is on.
+                shizuku.setEnabled(monitor.value.shizuku && !safeMode.value)
             } finally {
                 settingsLoaded.complete(Unit)
             }

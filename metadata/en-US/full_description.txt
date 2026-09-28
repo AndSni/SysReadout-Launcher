@@ -4,6 +4,7 @@ The launcher:
 * A handful of pinned apps as clean text entries, limited only by screen height; everything else is one swipe away in a searchable drawer.
 * Gestures: swipe up for apps, down for notifications, left/right for an app of your choice, double-tap to lock, long-press for settings.
 * Hidden apps, renaming, work profiles.
+* Switch the log off and it is simply a clean, quiet list of apps.
 
 The readout:
 * About 50 optional rows: CPU and memory, battery current and watts, thermal headroom, network speed, Wi-Fi and mobile signal (spelled out, no icons), IP, storage, build properties, GPU, sensors, sunrise, moon phase and more. Pick and order them yourself.

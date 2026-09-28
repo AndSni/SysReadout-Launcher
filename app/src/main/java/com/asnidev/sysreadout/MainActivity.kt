@@ -27,7 +27,10 @@ import androidx.compose.ui.graphics.luminance
 import com.asnidev.sysreadout.ui.Drawer
 import com.asnidev.sysreadout.ui.HomeScreen
 import com.asnidev.sysreadout.ui.LogBackdrop
+import com.asnidev.sysreadout.data.EntryStyle
+import com.asnidev.sysreadout.data.HAlign
 import com.asnidev.sysreadout.data.LogLayout
+import com.asnidev.sysreadout.data.VAlign
 import com.asnidev.sysreadout.data.Presets
 import com.asnidev.sysreadout.ui.LocalStyled
 import com.asnidev.sysreadout.ui.crt
@@ -37,6 +40,7 @@ import com.asnidev.sysreadout.ui.settings.Page
 import com.asnidev.sysreadout.ui.settings.SettingsScreen
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import kotlinx.coroutines.flow.update
 
 class MainActivity : ComponentActivity() {
 
@@ -57,6 +61,10 @@ class MainActivity : ComponentActivity() {
      * touching saved settings, open a screen (home/drawer/settings) or a settings page,
      * draw the lock-screen snapshot to cache/snapshot.png instead of the wallpaper, or
      * crash on purpose (`--ez crash true`, twice in a row to try safe mode).
+     * Home settings for screenshots, also unsaved: `--es pinned "Phone,Chrome"`,
+     * `--es style bare`, `--ez log false`, `--ez clock false`, `--ez date false`,
+     * `--es halign center`, `--es valign top`,
+     * `--ez shizuku true`. Force-stopping the app drops all of them.
      */
     private fun preview(intent: Intent?) {
         if (!BuildConfig.DEBUG) return
@@ -81,6 +89,34 @@ class MainActivity : ComponentActivity() {
         }
         intent?.getStringExtra("screen")?.let { name ->
             Screen.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { vm.screen = it }
+        }
+        intent?.getStringExtra("pinned")?.let { labels ->
+            vm.homePreview.update { it.copy(pinned = if (labels == "none") null else labels.split(',').map(String::trim)) }
+        }
+        intent?.getStringExtra("style")?.let { name ->
+            vm.homePreview.update { it.copy(style = EntryStyle.entries.firstOrNull { e -> e.name.equals(name, ignoreCase = true) }) }
+        }
+        intent?.getStringExtra("halign")?.let { name ->
+            vm.homePreview.update { it.copy(hAlign = HAlign.entries.firstOrNull { e -> e.name.equals(name, ignoreCase = true) }) }
+        }
+        intent?.getStringExtra("valign")?.let { name ->
+            vm.homePreview.update { it.copy(vAlign = VAlign.entries.firstOrNull { e -> e.name.equals(name, ignoreCase = true) }) }
+        }
+        if (intent?.hasExtra("log") == true) {
+            val show = intent.getBooleanExtra("log", true)
+            vm.homePreview.update { it.copy(showLog = show) }
+        }
+        if (intent?.hasExtra("clock") == true) {
+            val show = intent.getBooleanExtra("clock", true)
+            vm.homePreview.update { it.copy(showClock = show) }
+        }
+        if (intent?.hasExtra("date") == true) {
+            val show = intent.getBooleanExtra("date", true)
+            vm.homePreview.update { it.copy(showDate = show) }
+        }
+        if (intent?.hasExtra("shizuku") == true) {
+            val on = intent.getBooleanExtra("shizuku", false)
+            vm.homePreview.update { it.copy(shizuku = on) }
         }
         intent?.getStringExtra("page")?.let { name ->
             Page.byName(name)?.let {

@@ -1,0 +1,1 @@
+Fixed: right after the launcher started, the log's first line could report Shizuku as off although it was already connecting.
