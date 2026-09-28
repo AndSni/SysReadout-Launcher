@@ -9,13 +9,13 @@ IssueTracker: https://github.com/AndSni/SysReadout-Launcher/issues
 Changelog: 
   https://github.com/AndSni/SysReadout-Launcher/blob/HEAD/metadata/en-US/changelogs/%c.txt
 
-RepoType: git
-Repo: https://github.com/AndSni/SysReadout-Launcher.git
-
 # Summary/Description are intentionally omitted: the fastlane-structured
 # metadata/en-US/{title,short_description,full_description}.txt in this repo is
 # the single source of truth.
+AutoName: SysReadout
 
+RepoType: git
+Repo: https://github.com/AndSni/SysReadout-Launcher.git
 # Each version tag also publishes a GitHub Release at that tag
 # (.github/workflows/release-tag.yml) carrying the identical, developer-signed
 # APK, so F-Droid's reproducible-build check can diff its own build against it.
