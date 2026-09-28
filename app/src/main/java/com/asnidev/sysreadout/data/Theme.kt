@@ -193,9 +193,9 @@ object Presets {
         ),
     )
 
-    /** Green-phosphor terminal in the spirit of a certain wrist computer. */
-    val wasteland = Preset(
-        "wasteland",
+    /** P1 green phosphor, the classic monochrome terminal, with the full CRT treatment. */
+    val greenP1 = Preset(
+        "green p1",
         Theme(
             background = 0xFF020E05, accent = 0xFF1AFF80, backing = 0xFF031A09,
             clock = spec("vt323", 88f, 0xFF1AFF80),
@@ -275,7 +275,7 @@ object Presets {
         ),
     )
 
-    val builtIn = listOf(default, wasteland, amber, paper, minimal, arcade, lime)
+    val builtIn = listOf(default, greenP1, amber, paper, minimal, arcade, lime)
 
     /** Choices offered for the menu-entry prefix. */
     val prefixes = listOf("", "> ", "$ ", "./", "- ", "• ", "~/", "C:\\> ", "[{n}] ", "{n}. ", "{n} ")

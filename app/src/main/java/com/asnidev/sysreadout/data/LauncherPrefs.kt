@@ -65,6 +65,14 @@ data class LauncherPrefs(
     companion object {
         val INTERVALS = listOf(1, 2, 5, 10)
         const val DEFAULT_BANNER =
+            "SYSREADOUT INDUSTRIES OPERATING SYSTEM\nCOPYRIGHT 2026-{year} SYSREADOUT INC.\n- {device} -"
+
+        /** The default text before 0.2.2. A banner still set to it was never edited, so it follows the new default. */
+        internal const val PREVIOUS_DEFAULT_BANNER =
             "SYSREADOUT INDUSTRIES UNIFIED OPERATING SYSTEM\nCOPYRIGHT 2026-{year} SYSREADOUT INC.\n- {device} -"
+
+        /** The banner to show for a saved value: the user's own text, or the current default. */
+        fun bannerFrom(saved: String?): String =
+            if (saved == null || saved == PREVIOUS_DEFAULT_BANNER) DEFAULT_BANNER else saved
     }
 }

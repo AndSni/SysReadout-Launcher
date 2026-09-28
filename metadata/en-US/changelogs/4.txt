@@ -1,0 +1,1 @@
+New default banner: SYSREADOUT INDUSTRIES OPERATING SYSTEM (a banner you never edited changes by itself). The green phosphor preset is now "green p1", matching "amber p3" and "paper p4". System errors from Shizuku show one line per error instead of every stack-trace line, and a repeating error at most once a minute.

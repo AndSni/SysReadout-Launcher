@@ -8,7 +8,7 @@ an old CRT terminal. Built for people who like to know what their phone is doing
 SRL for short.
 
 <p>
-<img src="metadata/en-US/images/phoneScreenshots/01_wasteland.png" width="190" alt="Wasteland preset: green phosphor terminal with CRT curvature, processes and connections from Shizuku">
+<img src="metadata/en-US/images/phoneScreenshots/01_green_p1.png" width="190" alt="Green P1 preset: green phosphor terminal with CRT curvature, processes and connections from Shizuku">
 <img src="metadata/en-US/images/phoneScreenshots/02_clean.png" width="190" alt="A clean home screen: the minimal preset with the log switched off">
 <img src="metadata/en-US/images/phoneScreenshots/03_amber_feed.png" width="190" alt="Amber P3 preset with the feed layout">
 <img src="metadata/en-US/images/phoneScreenshots/09_presets.png" width="190" alt="The seven built-in presets in settings">
@@ -119,7 +119,7 @@ Signing certificate SHA-256: `03873cc1869db581465c718d15b58d7f80999dec058ff21617
 - Fonts (licences in [`app/src/main/assets/licenses`](app/src/main/assets/licenses), also viewable in the app under settings › about):
   JetBrains Mono, IBM Plex Mono, Space Mono, Share Tech Mono, VT323, Major Mono Display, Press Start 2P and Silkscreen under the SIL Open Font License 1.1;
   Px437 IBM VGA 8x16 by VileR ([int10h.org](https://int10h.org/oldschool-pc-fonts/)) under CC BY-SA 4.0.
-- [Shizuku](https://github.com/RikkaApps/Shizuku) API (Apache-2.0), [Haze](https://github.com/chrisbanes/haze) (Apache-2.0), AndroidX and Jetpack Compose (Apache-2.0).
+- [Shizuku](https://github.com/RikkaApps/Shizuku-API) API (MIT), [Haze](https://github.com/chrisbanes/haze) (Apache-2.0), AndroidX and Jetpack Compose (Apache-2.0).
 - Inspired by [Olauncher](https://github.com/tanujnotes/Olauncher) and [mLauncher](https://github.com/CodeWorksCreativeHub/mLauncher).
 
 ## License

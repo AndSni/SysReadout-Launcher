@@ -94,7 +94,7 @@ Free text above everything else, like a terminal's boot header. Edit it under lo
 For example:
 
 ```
-ASNIDEV INDUSTRIES UNIFIED OPERATING SYSTEM
+ASNIDEV INDUSTRIES OPERATING SYSTEM
 COPYRIGHT 2026-{year} ASNIDEV INC.
 - {device} -
 ```
@@ -231,7 +231,7 @@ Needed for the `ntf` and `media` rows, the notification stream and the *notifica
 
 Settings › appearance.
 
-- **Presets**: *sysreadout* (default), *wasteland* (green phosphor terminal), *amber p3* (DOS amber), *paper p4* (white phosphor), *minimal*, *arcade*, *lime*. Tap to apply. *Save current as preset…* keeps your own; long-press one of yours to delete it.
+- **Presets**: *sysreadout* (default), *green p1* (green phosphor terminal), *amber p3* (DOS amber), *paper p4* (white phosphor), *minimal*, *arcade*, *lime*. Tap to apply. *Save current as preset…* keeps your own; long-press one of yours to delete it.
 - **Colours**: background, accent (prompt, cursor), backing (the tint behind menu entries).
 - **Text**: clock, date, menu entries, drawer, log and banner each have their own font, size, bold, letter spacing, case (as-is / lower / UPPER) and colour, with a live preview.
 - **Fonts**: 11 bundled (system mono/sans, JetBrains Mono, IBM Plex Mono, Space Mono, Share Tech Mono, VT323, Px437 IBM VGA, Major Mono Display, Press Start 2P, Silkscreen) plus *import .ttf / .otf* for your own. Long-press an imported font to delete it.

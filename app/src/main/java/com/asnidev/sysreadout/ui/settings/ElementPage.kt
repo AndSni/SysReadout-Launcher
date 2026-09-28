@@ -53,7 +53,7 @@ private fun sample(e: StyleElement) = when (e) {
     StyleElement.MENU -> "Firefox"
     StyleElement.DRAWER -> "Signal"
     StyleElement.LOG -> "mem   1.2G/2.4G avail  51% used"
-    StyleElement.BANNER -> "Unified Operating System"
+    StyleElement.BANNER -> "SysReadout Industries"
 }
 
 @Composable

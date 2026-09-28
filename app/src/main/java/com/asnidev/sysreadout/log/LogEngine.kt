@@ -124,6 +124,8 @@ class LogEngine(
     private var dnsSeen = 0L
     private var notifSeen = System.currentTimeMillis()
     private val dnsEmitted = HashMap<String, Long>()
+    /** Last time each logcat error was shown, to hold back repeats. */
+    private val logcatShown = HashMap<String, Long>()
     private var started = false
     private var lastShizuku: ShizukuState? = null
     /** /proc/net files read successfully at least once (a phone without IPv6 has no tcp6). */
@@ -444,9 +446,18 @@ class LogEngine(
             "logcat -d -v epoch -T ${String.format(Locale.US, "%.3f", since)} '*:$level' | tail -n 60"
         }
         val lines = Parsers.logcat(shizuku.exec(command) ?: return)
-        lines.filter { since == null || it.time > since }.forEach {
-            emit("log${it.level}", "${it.tag}: ${it.message}", (it.time * 1000).toLong())
-        }
+        lines.filter { since == null || it.time > since }
+            .filterNot { Parsers.isStackTraceLine(it.message) } // one line per error, not its stack trace
+            .forEach {
+                val text = "${it.tag}: ${it.message}"
+                val time = (it.time * 1000).toLong()
+                // An app stuck repeating the same error shows once a minute, not on every line.
+                val last = logcatShown[text]
+                if (last != null && time - last < LOGCAT_REPEAT_MS) return@forEach
+                logcatShown[text] = time
+                emit("log${it.level}", text, time)
+            }
+        if (logcatShown.size > 500) logcatShown.entries.removeAll { System.currentTimeMillis() - it.value > LOGCAT_REPEAT_MS }
         logcatLast = lines.maxOfOrNull { it.time } ?: since ?: (System.currentTimeMillis() / 1000.0)
     }
 
@@ -751,6 +762,7 @@ class LogEngine(
         private const val STREAM_MAX = 300
         private const val SHELL_UID = 2000
         private const val DNS_REPEAT_MS = 5 * 60_000L
+        private const val LOGCAT_REPEAT_MS = 60_000L
         private val PKG_PREFIXES = listOf("com.google.android.apps.", "com.google.android.", "com.android.", "com.", "org.")
     }
 }

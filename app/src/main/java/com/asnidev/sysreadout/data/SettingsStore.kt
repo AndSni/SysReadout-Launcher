@@ -118,7 +118,7 @@ class SettingsStore(private val context: Context) {
             showStream = p[K.showStream] ?: d.showStream,
             streamTimestamps = p[K.streamTimestamps] ?: d.streamTimestamps,
             showBanner = p[K.showBanner] ?: d.showBanner,
-            banner = p[K.banner] ?: d.banner,
+            banner = LauncherPrefs.bannerFrom(p[K.banner]),
             bannerAlign = enumOr(p[K.bannerAlign], d.bannerAlign),
             lockMode = enumOr(p[K.lockMode], d.lockMode),
             logLayout = enumOr(p[K.logLayout], d.logLayout),

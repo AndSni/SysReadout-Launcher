@@ -129,6 +129,22 @@ class ShellParsersTest {
     }
 
     @Test
+    fun stackTraceContinuationLines() {
+        listOf(
+            "\tat com.google.android.apps.gsa.shared.util.c.a.b(PG:21)",
+            "at java.util.concurrent.FutureTask.run(FutureTask.java:264)",
+            "Caused by: java.io.IOException: timeout",
+            "Suppressed: java.lang.IllegalStateException",
+            "... 12 more",
+        ).forEach { assertTrue(it, Parsers.isStackTraceLine(it)) }
+        listOf(
+            "ANR in com.example.app",
+            "WM sent Transaction to organized, but never received commit callback",
+            "Fatal error at startup",
+        ).forEach { assertFalse(it, Parsers.isStackTraceLine(it)) }
+    }
+
+    @Test
     fun cpuTicksPerCore() {
         val stat = """
             cpu  403483 66809 120066 12394435 2157 17894 1768 18990 0 0
