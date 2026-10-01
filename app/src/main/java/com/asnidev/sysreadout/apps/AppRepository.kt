@@ -10,9 +10,11 @@ import android.os.Looper
 import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
+import android.util.Log
 import com.asnidev.sysreadout.data.AppKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -38,32 +40,53 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
         override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) = refresh()
     }
 
+    /**
+     * Refresh requests, conflated: one loader reads them in order, so a slow older
+     * load can never overwrite a newer list, and a burst of package events
+     * (an app update sends several) costs one or two loads, not one each.
+     */
+    private val refreshes = Channel<Unit>(Channel.CONFLATED)
+
     init {
         launcherApps.registerCallback(callback, Handler(Looper.getMainLooper()))
+        scope.launch(Dispatchers.IO) {
+            for (request in refreshes) {
+                // A failed load keeps the last good list; the next package event or resume retries.
+                runCatching { _apps.value = load() }.onFailure { Log.w(TAG, "couldn't list apps", it) }
+            }
+        }
         refresh()
     }
 
-    fun close() = launcherApps.unregisterCallback(callback)
+    fun close() {
+        refreshes.close()
+        launcherApps.unregisterCallback(callback)
+    }
 
     fun refresh() {
-        scope.launch(Dispatchers.IO) {
-            val me = Process.myUserHandle()
-            val collator = Collator.getInstance()
-            _apps.value = userManager.userProfiles.flatMap { user ->
-                val serial = userManager.getSerialNumberForUser(user)
-                // A locked or removed profile throws; the other profiles still count.
-                runCatching { launcherApps.getActivityList(null, user) }.getOrDefault(emptyList())
-                    .filter { it.componentName.packageName != context.packageName }
-                    .map {
-                        AppEntry(
-                            key = AppKey(it.componentName.packageName, it.componentName.className, serial),
-                            label = it.label.toString(),
-                            isWork = user != me,
-                            uid = it.applicationInfo.uid,
-                        )
-                    }
-            }.sortedWith { a, b -> collator.compare(a.label, b.label) }
+        refreshes.trySend(Unit)
+    }
+
+    private fun load(): List<AppEntry> {
+        val me = Process.myUserHandle()
+        val collator = Collator.getInstance()
+        return userManager.userProfiles.flatMap { user ->
+            val serial = userManager.getSerialNumberForUser(user)
+            // A locked or removed profile throws; the other profiles still count.
+            runCatching { launcherApps.getActivityList(null, user) }.getOrDefault(emptyList())
+                .filter { it.componentName.packageName != context.packageName }
+                .map {
+                    AppEntry(
+                        key = AppKey(it.componentName.packageName, it.componentName.className, serial),
+                        label = it.label.toString(),
+                        isWork = user != me,
+                        uid = it.applicationInfo.uid,
+                    )
+                }
         }
+            // Lists key their rows by app: a duplicate (seen on some phones) would crash them.
+            .distinctBy { it.key }
+            .sortedWith { a, b -> collator.compare(a.label, b.label) }
     }
 
     private fun handle(key: AppKey): UserHandle? = runCatching { userManager.getUserForSerialNumber(key.user) }.getOrNull()
@@ -94,5 +117,9 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
             context.startActivity(intent)
         } catch (_: RuntimeException) { // ActivityNotFoundException / SecurityException
         }
+    }
+
+    private companion object {
+        const val TAG = "AppRepository"
     }
 }

@@ -210,7 +210,7 @@ private fun LockScreenSection(vm: LauncherViewModel) {
     }
     when (prefs.lockMode) {
         LockMode.OFF -> Note("SysReadout doesn't touch your lock-screen wallpaper. switching here from image or snapshot gives the lock screen your home wallpaper back.")
-        LockMode.IMAGE -> Link("choose image") { picker.launch(arrayOf("image/*")) }
+        LockMode.IMAGE -> Link("choose image") { picker.launchOr(context, "no app to pick an image with", arrayOf("image/*")) }
         LockMode.SNAPSHOT -> {
             Link("update now") {
                 vm.updateLockSnapshot()

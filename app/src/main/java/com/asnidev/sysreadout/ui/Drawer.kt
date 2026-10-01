@@ -73,7 +73,8 @@ fun Drawer(vm: LauncherViewModel) {
         if (!vm.launch(app.key)) Toast.makeText(context, "can't open ${app.label}", Toast.LENGTH_SHORT).show()
     }
 
-    LaunchedEffect(Unit) { if (prefs.autoKeyboard) focus.requestFocus() }
+    // Throws if the field isn't attached yet; the keyboard is a convenience, not worth a crash.
+    LaunchedEffect(Unit) { if (prefs.autoKeyboard) runCatching { focus.requestFocus() } }
     LaunchedEffect(q, results.size) {
         if (prefs.autoLaunch && q.isNotEmpty() && results.size == 1) open(results.first())
     }

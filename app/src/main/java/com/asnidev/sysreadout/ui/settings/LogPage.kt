@@ -226,7 +226,7 @@ private fun DnsMonitorSection(vm: LauncherViewModel) {
                 vm.updateMonitor { it.copy(dnsVpn = true) }
                 DnsVpnService.start(context)
             } else {
-                consent.launch(ask)
+                consent.launchOr(context, "this phone has no vpn permission screen", ask)
             }
         } else {
             vm.updateMonitor { it.copy(dnsVpn = false) }

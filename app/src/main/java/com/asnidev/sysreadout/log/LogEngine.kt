@@ -166,14 +166,17 @@ class LogEngine(
         if (!started) {
             started = true
             val m = monitor.value
+            // Kept short: stream lines don't wrap, and these must fit a narrow phone.
+            emit("log", "sysreadout up")
             emit(
                 "log",
-                "sysreadout up · shizuku ${shizuku.state.value.label}" +
+                "shizuku ${shizuku.state.value.label}" +
                     " · usage access ${if (usage.hasAccess()) "on" else "off"}" +
-                    " · dns monitor ${if (DnsLog.running.value) "on" else "off"}",
+                    " · dns ${if (DnsLog.running.value) "on" else "off"}",
             )
             if (!m.shizuku && !m.shizukuTip) {
-                emit("tip", "shizuku adds processes, connections, wakelocks and more · settings › shizuku")
+                emit("tip", "shizuku adds processes, connections,")
+                emit("tip", "wakelocks and more · settings › shizuku")
                 onShizukuTip()
             }
         }

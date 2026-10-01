@@ -269,8 +269,11 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     fun move(key: AppKey, delta: Int) = update {
         val list = it.pinned.toMutableList()
         val from = list.indexOf(key)
+        // Not in the saved list (any more): nothing to move. Checked first, as an empty
+        // list has no index range to clamp to.
+        if (from < 0) return@update it
         val to = (from + delta).coerceIn(0, list.lastIndex)
-        if (from < 0 || from == to) it else it.copy(pinned = list.apply { add(to, removeAt(from)) })
+        if (from == to) it else it.copy(pinned = list.apply { add(to, removeAt(from)) })
     }
 
     fun rename(key: AppKey, label: String) = update {
@@ -289,8 +292,11 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     fun moveRow(id: String, delta: Int) = update {
         val list = it.logRows.toMutableList()
         val from = list.indexOf(id)
+        // Not in the saved list (any more): nothing to move. Checked first, as an empty
+        // list has no index range to clamp to.
+        if (from < 0) return@update it
         val to = (from + delta).coerceIn(0, list.lastIndex)
-        if (from < 0 || from == to) it else it.copy(logRows = list.apply { add(to, removeAt(from)) })
+        if (from == to) it else it.copy(logRows = list.apply { add(to, removeAt(from)) })
     }
 
     fun updateMonitor(transform: (MonitorPrefs) -> MonitorPrefs) {

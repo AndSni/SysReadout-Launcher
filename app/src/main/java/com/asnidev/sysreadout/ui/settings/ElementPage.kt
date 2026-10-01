@@ -122,7 +122,7 @@ private fun FontDialog(vm: LauncherViewModel, element: StyleElement, current: St
         onDismissRequest = onDismiss,
         title = { Text("font · ${element.title}", style = Type.row) },
         confirmButton = {
-            TextButton(onClick = { importer.launch(arrayOf("*/*")) }) { Text("import .ttf / .otf", style = Type.row) }
+            TextButton(onClick = { importer.launchOr(context, "no app to pick a file with", arrayOf("*/*")) }) { Text("import .ttf / .otf", style = Type.row) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("close", style = Type.row) } },
         text = {

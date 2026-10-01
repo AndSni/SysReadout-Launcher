@@ -90,11 +90,16 @@ object Fonts {
     fun name(context: Context, id: String): String =
         all(context).firstOrNull { it.id == id }?.name ?: "system mono"
 
-    /** Copies a picked .ttf/.otf into app storage. Null when it isn't a usable font. */
+    /**
+     * Copies a picked .ttf/.otf into app storage. Null when it isn't a usable font,
+     * or the app that provides the file refuses or fails to hand it over.
+     */
     fun import(context: Context, uri: Uri): FontOption? {
-        val display = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "font.ttf"
-        var name = display.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val display = runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }.getOrNull() ?: "font.ttf"
+        var name = display.replace(Regex("[^A-Za-z0-9._-]"), "_").trimStart('.').ifEmpty { "font.ttf" }
         if (!name.endsWith(".ttf", true) && !name.endsWith(".otf", true)) name += ".ttf"
         val target = File(dir(context), name)
         val tmp = File(dir(context), ".$name.part")
@@ -104,7 +109,7 @@ object Fonts {
             } ?: return null
             // Typeface.Builder returns null for anything that isn't a font it can render.
             Typeface.Builder(tmp).build() ?: return null
-            tmp.renameTo(target)
+            if (!tmp.renameTo(target)) return null
             synchronized(cache) { cache.remove(USER_PREFIX + name) }
             FontOption(USER_PREFIX + name, target.nameWithoutExtension)
         } catch (e: Exception) {

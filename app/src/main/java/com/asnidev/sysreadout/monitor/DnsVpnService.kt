@@ -175,11 +175,14 @@ class DnsVpnService : VpnService() {
         return null
     }
 
-    /** SysReadout is excluded from its own VPN, so its default network is the real one. */
+    /**
+     * SysReadout is excluded from its own VPN, so its default network is the real one.
+     * Only that network's own servers: with none (offline), the lookup goes unanswered
+     * as it would without the monitor, rather than to some public resolver.
+     */
     private fun upstream(): List<InetAddress> =
         cm.getLinkProperties(cm.activeNetwork)?.dnsServers.orEmpty()
             .filterNot { it.hostAddress == DNS_ADDRESS }
-            .ifEmpty { FALLBACK }
 
     private fun ownerUid(p: UdpPacket): Int {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return -1
@@ -198,7 +201,6 @@ class DnsVpnService : VpnService() {
         private const val MTU = 4096
         private const val VPN_ADDRESS = "10.111.222.1"
         const val DNS_ADDRESS = "10.111.222.2"
-        private val FALLBACK = listOf("9.9.9.9", "1.1.1.1").map { InetAddress.getByName(it) }
 
         /** Null when the user has already allowed the VPN; otherwise the consent screen to show. */
         fun consentIntent(context: Context): Intent? = prepare(context)

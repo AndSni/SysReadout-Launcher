@@ -1,5 +1,9 @@
 package com.asnidev.sysreadout.ui.settings
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +28,15 @@ import com.asnidev.sysreadout.ui.Palette
 import com.asnidev.sysreadout.ui.Type
 
 // Settings chrome keeps a fixed look so no theme can make it unreadable.
+
+/** Opens a file picker or system screen; some phones have none, which must not crash the launcher. */
+fun <I> ActivityResultLauncher<I>.launchOr(context: Context, missing: String, input: I) {
+    try {
+        launch(input)
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(context, missing, Toast.LENGTH_SHORT).show()
+    }
+}
 
 @Composable
 fun Section(title: String) =

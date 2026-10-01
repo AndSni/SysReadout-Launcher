@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.DropdownMenu
@@ -119,7 +121,6 @@ fun HomeScreen(vm: LauncherViewModel, haze: HazeState) {
     ) {
         val safe by vm.safeMode.collectAsState()
         if (safe) SafeModeNote(prefs.entryStyle, haze, styled, onResume = vm::leaveSafeMode)
-        if (prefs.showClock || prefs.showDate) ClockBlock(prefs.showClock, prefs.showDate, horizontal, prefs.entryStyle, haze, styled)
 
         val measurer = rememberTextMeasurer()
         val density = LocalDensity.current
@@ -127,35 +128,46 @@ fun HomeScreen(vm: LauncherViewModel, haze: HazeState) {
             with(density) { measurer.measure("Ag", styled.menu).size.height.toDp() } + EntryPadV * 2 + EntryGap
         }
 
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            // The menu takes only the free vertical space: that is the cap on entries.
-            val capacity = ((maxHeight + EntryGap) / rowHeight).toInt().coerceAtLeast(1)
-            LaunchedEffect(capacity) { vm.menuCapacity = capacity }
+        // Clock, date and menu move as one group, placed by "vertical position": at the
+        // default (center) the clock stays clear of the banner and log table at the top.
+        Column(
+            Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = when (prefs.vAlign) {
+                VAlign.TOP -> Arrangement.Top
+                VAlign.CENTER -> Arrangement.Center
+                VAlign.BOTTOM -> Arrangement.Bottom
+            },
+            horizontalAlignment = horizontal,
+        ) {
+            if (prefs.showClock || prefs.showDate) {
+                ClockBlock(prefs.showClock, prefs.showDate, horizontal, prefs.entryStyle, haze, styled)
+                Spacer(Modifier.height(16.dp))
+            }
 
-            Column(
-                Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(
-                    EntryGap,
-                    when (prefs.vAlign) {
-                        VAlign.TOP -> Alignment.Top
-                        VAlign.CENTER -> Alignment.CenterVertically
-                        VAlign.BOTTOM -> Alignment.Bottom
-                    },
-                ),
-                horizontalAlignment = horizontal,
-            ) {
-                if (entries.isEmpty()) {
-                    val ink = styled.date.color
-                    Text(
-                        styled.text(StyleElement.DATE, "swipe up for apps · long-press one to pin it"),
-                        style = styled.date,
-                        color = styled.ink(prefs.entryStyle, ink),
-                        modifier = Modifier
-                            .backing(prefs.entryStyle, haze, styled, ink)
-                            .padding(horizontal = EntryPadH, vertical = EntryPadV),
-                    )
+            // fill = false: the menu is only as tall as its entries, so the group can be centered;
+            // its maximum is still the free space left by the clock, which caps the entries.
+            BoxWithConstraints(Modifier.weight(1f, fill = false).fillMaxWidth()) {
+                val capacity = ((maxHeight + EntryGap) / rowHeight).toInt().coerceAtLeast(1)
+                LaunchedEffect(capacity) { vm.menuCapacity = capacity }
+
+                Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(EntryGap),
+                    horizontalAlignment = horizontal,
+                ) {
+                    if (entries.isEmpty()) {
+                        val ink = styled.date.color
+                        Text(
+                            styled.text(StyleElement.DATE, "swipe up for apps · long-press one to pin it"),
+                            style = styled.date,
+                            color = styled.ink(prefs.entryStyle, ink),
+                            modifier = Modifier
+                                .backing(prefs.entryStyle, haze, styled, ink)
+                                .padding(horizontal = EntryPadH, vertical = EntryPadV),
+                        )
+                    }
+                    entries.take(capacity).forEachIndexed { i, entry -> HomeEntry(vm, entry, i, haze, styled) }
                 }
-                entries.take(capacity).forEachIndexed { i, entry -> HomeEntry(vm, entry, i, haze, styled) }
             }
         }
     }

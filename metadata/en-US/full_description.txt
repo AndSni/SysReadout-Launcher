@@ -23,7 +23,7 @@ Every permission is asked only when you switch on the row that needs it.
 Make it yours:
 * 7 presets including green phosphor and amber DOS terminals, your own saved presets.
 * 11 bundled fonts plus your own .ttf/.otf, with size, weight, spacing, case and colour per element.
-* CRT effects: glow, scanlines, curvature, vignette, colour fringe, flicker and grain.
+* CRT effects: glow, scanlines, curvature, vignette, colour fringe, flicker and grain (curvature, fringe, flicker and grain need Android 13 or newer).
 * Lock screen: leave it alone, use your own image, or show a snapshot of the log.
 
 The log only runs while the home screen is visible. Nothing is collected or sent anywhere: no ads, no analytics, no tracking.
