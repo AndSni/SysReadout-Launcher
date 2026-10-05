@@ -215,7 +215,7 @@ Server names come from reverse DNS by default (*hostnames (reverse dns)*), which
 
 Settings › log › *dns monitor*. It shows which app looks up which server (`Gmail → imap.gmail.com`), and gives the connections table real host names.
 
-How it works: SysReadout starts a VPN that carries **only DNS**. Android sends apps' lookups to a resolver address inside it; each lookup is noted (app, name, returned addresses) and passed on unchanged to your network's normal DNS server. Only if the network names no DNS server at all does it fall back to Quad9 (9.9.9.9) and Cloudflare (1.1.1.1). No other traffic goes through it, and nothing is sent anywhere else. This is the only feature that uses the internet permission.
+How it works: SysReadout starts a VPN that carries **only DNS**. Android sends apps' lookups to a resolver address inside it; each lookup is noted (app, name, returned addresses) and passed on unchanged to your network's normal DNS server. If the network names no DNS server (offline), the lookup goes unanswered, as it would without the monitor; there is no public fallback resolver. No other traffic goes through it, and nothing is sent anywhere else. This is the only feature that uses the internet permission.
 
 Limits:
 

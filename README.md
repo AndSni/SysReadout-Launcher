@@ -31,7 +31,7 @@ From a full CRT terminal to a plain list of apps: every look, the log and each e
 - Two layouts: **classic** (rows, tables and stream in fixed places) or **feed**, one header-free list where new lines push older ones off the screen and lines already showing update in place.
 
 **System monitor** (each part optional)
-- **[Shizuku](https://shizuku.rikka.app/)** (optional, with a guided setup under settings › shizuku): processes by CPU or memory, every connection per app with the server's name, wakelocks, per-app battery drain, temperatures, per-core load, system errors from logcat. Once connected it can switch on the other access below in one tap.
+- **[Shizuku](https://shizuku.rikka.app/)** (optional, with a guided setup under settings › shizuku): processes by CPU or memory, every connection per app with the server's name (reverse DNS lookups through your network's DNS server, made by Shizuku's helper; *hostnames* switch under settings › log), wakelocks, per-app battery drain, temperatures, per-core load, system errors from logcat. Once connected it can switch on the other access below in one tap.
 - **Usage access:** screen time, unlocks, traffic per app, data used this month.
 - **Notification access:** a notification log and per-app table, and what's playing.
 - **DNS monitor:** a local VPN that carries only DNS, showing which app looks up which server.
@@ -47,7 +47,7 @@ Everything is explained in the **[user manual](docs/MANUAL.md)**.
 
 ## Install
 
-- **F-Droid:** submission in preparation.
+- **F-Droid:** submitted and in review ([fdroiddata!50444](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/50444)).
 - **GitHub:** download the APK from the [latest release](https://github.com/AndSni/SysReadout-Launcher/releases/latest) and open it (allow "install unknown apps").
 
 Then make it your home screen: **Settings › Apps › Default apps › Home app › SysReadout**.
@@ -67,7 +67,7 @@ Nothing beyond the basics is used until you switch on the feature that needs it,
 | Set alarm | tapping the clock opens your alarms | install-time |
 | Query all packages | real app names for system processes, connections and traffic | install-time |
 | Set wallpaper | lock-screen image or log snapshot | only if you choose it |
-| Internet | **only** the optional DNS monitor, which relays your apps' own lookups to your network's DNS server (Quad9 or Cloudflare only if the network names none) | only if you switch it on |
+| Internet | **only** the optional DNS monitor, which relays your apps' own lookups to your network's own DNS servers (no public fallback) | only if you switch it on |
 | Usage access | screen time, traffic, app switches | you grant it in Android settings |
 | Notification access | notification row, stream and table | you grant it in Android settings |
 | Accessibility (lock service) | double-tap to lock; reads no screen content | you enable it in Android settings |

@@ -17,8 +17,11 @@
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
-    <!-- Only the optional DNS monitor uses the network: it relays apps' own lookups
-         to the real DNS server. Nothing else in SysReadout connects anywhere. -->
+    <!-- Only the optional DNS monitor uses this permission: it relays apps' own lookups
+         to the network's DNS server. The other network use is optional and runs in
+         Shizuku's helper process (shell user), not under this permission: reverse DNS
+         lookups of connection addresses for the connections table (settings › log ›
+         hostnames). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Optional lock-screen wallpaper (your image or a snapshot of the log). -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />

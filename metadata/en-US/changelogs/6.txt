@@ -1,0 +1,1 @@
+Clearer description of the app's network use: with Shizuku connected, server names in the connections table come from reverse DNS lookups through your network's DNS server, and you can switch them off under settings › log › hostnames. No changes to how the app works.

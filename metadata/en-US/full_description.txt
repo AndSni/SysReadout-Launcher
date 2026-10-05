@@ -13,7 +13,7 @@ The readout:
 * Two layouts: classic sections, or a feed where new lines push older ones off the screen, so any amount of data fits.
 
 Deeper monitoring, when you allow it:
-* With Shizuku (optional, with a guided setup): processes by CPU or memory, every connection per app with server names, wakelocks, per-app battery drain, temperatures, per-core load and system errors. Once connected, it can also switch on the access below in one tap.
+* With Shizuku (optional, with a guided setup): processes by CPU or memory, every connection per app with server names (found by reverse DNS lookups through your network's DNS server; you can switch them off), wakelocks, per-app battery drain, temperatures, per-core load and system errors. Once connected, it can also switch on the access below in one tap.
 * With usage access: screen time, unlocks, traffic per app and data used this month.
 * With notification access: a notification log and per-app table, and what's playing.
 * With the optional DNS monitor (a local VPN that only carries DNS): which app looks up which server.
@@ -26,4 +26,4 @@ Make it yours:
 * CRT effects: glow, scanlines, curvature, vignette, colour fringe, flicker and grain (curvature, fringe, flicker and grain need Android 13 or newer).
 * Lock screen: leave it alone, use your own image, or show a snapshot of the log.
 
-The log only runs while the home screen is visible. Nothing is collected or sent anywhere: no ads, no analytics, no tracking.
+The log only runs while the home screen is visible. Nothing is collected or sent anywhere: no ads, no analytics, no tracking. The app goes online only for two optional features: the DNS monitor, and the reverse DNS lookups of connection addresses with Shizuku.
