@@ -23,9 +23,9 @@ Binaries:
   https://github.com/AndSni/SysReadout-Launcher/releases/download/v%v/SysReadout-Launcher.apk
 
 Builds:
-  - versionName: 0.2.3
-    versionCode: 5
-    commit: 625f9380861e084f618d7385a32d9794fcc34e9f
+  - versionName: 0.2.4
+    versionCode: 6
+    commit: 5b8cfb5198cedde98669a68d8ef70fd74193f9e6
     # The Gradle root is the repo root; F-Droid looks for the output APK under
     # <subdir>/build/outputs/apk, so this must be the app module itself.
     subdir: app
@@ -37,5 +37,5 @@ AllowedAPKSigningKeys: 03873cc1869db581465c718d15b58d7f80999dec058ff21617b582677
 AutoUpdateMode: Version
 # Only vX.Y.Z tags are releases; `latest` is CI's rolling pre-release build.
 UpdateCheckMode: Tags ^v[0-9.]+$
-CurrentVersion: 0.2.3
-CurrentVersionCode: 5
+CurrentVersion: 0.2.4
+CurrentVersionCode: 6
